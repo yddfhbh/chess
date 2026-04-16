@@ -337,16 +337,10 @@ function buildPremovePreviewState() {
     var actorColor = getPremoveActorColor();
     if (!actorColor) return null;
 
-    var state = createBoardStateSnapshot();
-    for (var i = 0; i < premoveQueue.length; i++) {
-        var queuedMove = premoveQueue[i];
-        var queuedPiece = state.board[queuedMove.fromRow][queuedMove.fromCol];
-        if (!queuedPiece || pieceColor(queuedPiece) !== actorColor || !applyMoveToState(state, queuedMove)) {
-            clearPremoveQueue();
-            return createBoardStateSnapshot();
-        }
-    }
-    return state;
+    // A premove may depend on the opponent changing the position first
+    // (for example, recapturing onto a square currently occupied by our own piece).
+    // We keep the current board as the preview state and validate only when the turn returns.
+    return createBoardStateSnapshot();
 }
 
 function canStartPremove(row, col, previewState) {
@@ -357,6 +351,69 @@ function canStartPremove(row, col, previewState) {
     if (!piece || pieceColor(piece) !== actorColor) return false;
     if (gameSetting.mode === 'ai' && actorColor === gameSetting.aiColor) return false;
     return true;
+}
+
+function relaxedPremoveMovesForState(state, row, col) {
+    var piece = state.board[row][col];
+    if (!piece) return [];
+
+    var type = piece.toUpperCase();
+    var color = pieceColor(piece);
+    var moves = [];
+
+    function addMove(nr, nc) {
+        if (!inBounds(nr, nc)) return;
+        if (nr === row && nc === col) return;
+        moves.push([nr, nc]);
+    }
+
+    function addRay(dr, dc) {
+        var nr = row + dr;
+        var nc = col + dc;
+        while (inBounds(nr, nc)) {
+            addMove(nr, nc);
+            nr += dr;
+            nc += dc;
+        }
+    }
+
+    if (type === 'P') {
+        var dir = color === 'white' ? -1 : 1;
+        var startRow = color === 'white' ? 6 : 1;
+        addMove(row + dir, col);
+        if (row === startRow) addMove(row + dir * 2, col);
+        addMove(row + dir, col - 1);
+        addMove(row + dir, col + 1);
+    } else if (type === 'N') {
+        [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(function(offset) {
+            addMove(row + offset[0], col + offset[1]);
+        });
+    } else if (type === 'B') {
+        [[-1,-1],[-1,1],[1,-1],[1,1]].forEach(function(direction) {
+            addRay(direction[0], direction[1]);
+        });
+    } else if (type === 'R') {
+        [[-1,0],[1,0],[0,-1],[0,1]].forEach(function(direction) {
+            addRay(direction[0], direction[1]);
+        });
+    } else if (type === 'Q') {
+        [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(function(direction) {
+            addRay(direction[0], direction[1]);
+        });
+    } else if (type === 'K') {
+        for (var dr = -1; dr <= 1; dr++) {
+            for (var dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                addMove(row + dr, col + dc);
+            }
+        }
+        if ((color === 'white' && row === 7 && col === 4) || (color === 'black' && row === 0 && col === 4)) {
+            addMove(row, 6);
+            addMove(row, 2);
+        }
+    }
+
+    return moves;
 }
 
 function canDragPiece(row, col) {
@@ -372,13 +429,13 @@ function setSelection(row, col, moves, mode, piece) {
 }
 
 function queuePremove(fromRow, fromCol, toRow, toCol, promotionPiece) {
-    premoveQueue.push({
+    premoveQueue = [{
         fromRow: fromRow,
         fromCol: fromCol,
         toRow: toRow,
         toCol: toCol,
         promotionPiece: promotionPiece || null
-    });
+    }];
     cleanupDragState();
     renderBoard();
     updateUI();
@@ -456,7 +513,7 @@ function startPieceDrag(row, col, pieceEl, event) {
     }
 
     var previewState = mode === 'premove' ? buildPremovePreviewState() : null;
-    var moves = mode === 'live' ? legalMoves(row, col) : legalMovesForState(previewState, row, col);
+    var moves = mode === 'live' ? legalMoves(row, col) : relaxedPremoveMovesForState(previewState, row, col);
     if (moves.length === 0) {
         if (event && event.preventDefault) event.preventDefault();
         return;
@@ -608,7 +665,7 @@ function updateCustomPreset() {
     updateTimeSummary();
 }
 
-function updateTimeSummary() {
+/* function updateTimeSummary() {
     var el = document.getElementById('time-summary-text');
     if (gameSetting.unlimited) {
         el.textContent = '⏱️ 시간 제한 없음 (무제한)';
@@ -618,6 +675,17 @@ function updateTimeSummary() {
 }
 
 // ★ 게임 시작 (AI 모드 시 엔진 로딩 포함)
+*/
+
+function updateTimeSummary() {
+    var el = document.getElementById('time-summary-text');
+    if (gameSetting.unlimited) {
+        el.textContent = '시간 제한 없음 (무제한)';
+    } else {
+        el.textContent = '각 플레이어: ' + (gameSetting.minutes > 0 ? gameSetting.minutes + '분' : '0분') + ' | 추가 시간(수 당): ' + (gameSetting.increment > 0 ? gameSetting.increment + '초' : '없음');
+    }
+}
+
 function startGame() {
     gameSetting.whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
     gameSetting.blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
@@ -1181,7 +1249,7 @@ function onSquareClick(row, col) {
     if (canControlPiece(row, col)) {
         setSelection(row, col, legalMoves(row, col), 'live', board[row][col]);
     } else if (canStartPremove(row, col, premoveState)) {
-        setSelection(row, col, legalMovesForState(premoveState, row, col), 'premove', premoveState.board[row][col]);
+        setSelection(row, col, relaxedPremoveMovesForState(premoveState, row, col), 'premove', premoveState.board[row][col]);
     } else {
         cleanupDragState();
     }
@@ -1212,14 +1280,44 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol, mode, movingPiece) {
     modal.classList.add('active');
 }
 
-function updateUI() {
+/* function updateUI() {
     var statusEl = document.getElementById('status');
     if (!gameOver) {
         var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
         var icon = currentTurn === 'white' ? '?? : '??;
         var checkText = isInCheck(board, currentTurn) ? ' ?좑툘 泥댄겕!' : '';
-        var premoveText = premoveQueue.length > 0 ? ' | 프리무브 ' + premoveQueue.length + '수 대기' : '';
-        statusEl.textContent = icon + ' ' + name + '??李⑤?' + checkText + premoveText;
+        statusEl.textContent = icon + ' ' + name + '??李⑤?' + checkText;
+        statusEl.style.color = isInCheck(board, currentTurn) ? '#ff6b6b' : '';
+    }
+    document.getElementById('white-turn').className = 'turn-indicator' + (currentTurn === 'white' ? ' active' : '');
+    document.getElementById('black-turn').className = 'turn-indicator' + (currentTurn === 'black' ? ' active' : '');
+
+    var pieceOrder = { 'q':0,'r':1,'b':2,'n':3,'p':4,'Q':0,'R':1,'B':2,'N':3,'P':4 };
+    var sortedWhite = capturedByWhite.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
+    var sortedBlack = capturedByBlack.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
+
+    var whiteCapturedEl = document.getElementById('white-captured');
+    whiteCapturedEl.innerHTML = '';
+    sortedWhite.forEach(function(p) {
+        var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; whiteCapturedEl.appendChild(mini);
+    });
+
+    var blackCapturedEl = document.getElementById('black-captured');
+    blackCapturedEl.innerHTML = '';
+    sortedBlack.forEach(function(p) {
+        var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; blackCapturedEl.appendChild(mini);
+    });
+    updateTimerDisplay();
+}
+*/
+
+function updateUI() {
+    var statusEl = document.getElementById('status');
+    if (!gameOver) {
+        var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
+        var icon = currentTurn === 'white' ? '⚪' : '⚫';
+        var checkText = isInCheck(board, currentTurn) ? ' 체크!' : '';
+        statusEl.textContent = icon + ' ' + name + ' 차례' + checkText;
         statusEl.style.color = isInCheck(board, currentTurn) ? '#ff6b6b' : '';
     }
     document.getElementById('white-turn').className = 'turn-indicator' + (currentTurn === 'white' ? ' active' : '');
@@ -1391,6 +1489,39 @@ function copyPGN() {
     document.execCommand('copy');
     notifyCopied();
 }
+
+/* function updateTimerDisplay() {
+    var wEl = document.getElementById('white-timer'), bEl = document.getElementById('black-timer');
+    if (gameSetting.unlimited) {
+        wEl.textContent = '∞'; bEl.textContent = '∞';
+        wEl.classList.add('no-limit'); bEl.classList.add('no-limit');
+        wEl.classList.remove('low-time'); bEl.classList.remove('low-time');
+    } else {
+        wEl.textContent = formatTime(whiteTime); bEl.textContent = formatTime(blackTime);
+        wEl.classList.remove('no-limit'); bEl.classList.remove('no-limit');
+        if (whiteTime <= 30 && whiteTime > 0) wEl.classList.add('low-time'); else wEl.classList.remove('low-time');
+        if (blackTime <= 30 && blackTime > 0) bEl.classList.add('low-time'); else bEl.classList.remove('low-time');
+    }
+}
+
+function startTimer() {
+    stopTimer();
+    if (gameSetting.unlimited) return;
+    timerInterval = setInterval(function() {
+        if (gameOver) { stopTimer(); return; }
+        if (currentTurn === 'white') {
+            whiteTime--;
+            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; finalGameResult = '0-1'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
+        } else {
+            blackTime--;
+            if (blackTime <= 0) { blackTime = 0; gameOver = true; finalGameResult = '1-0'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
+        }
+        updateTimerDisplay();
+    }, 1000);
+}
+
+}
+*/
 
 function updateTimerDisplay() {
     var wEl = document.getElementById('white-timer'), bEl = document.getElementById('black-timer');
