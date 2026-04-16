@@ -86,17 +86,20 @@
                 </div>
                 <div class="online-actions">
                     <button type="button" class="online-btn primary" id="create-room-btn" onclick="createInviteRoom()">방 만들기</button>
-                    <button type="button" class="online-btn" id="random-match-btn" onclick="startRandomMatch()">랜덤 매칭</button>
-                    <button type="button" class="online-btn ghost" id="cancel-match-btn" onclick="cancelOnlineWaiting()" style="display:none;">대기 취소</button>
+                    <button type="button" class="online-btn" id="join-room-toggle-btn" onclick="toggleJoinRoomPanel()">방 참가하기</button>
+                    <button type="button" class="online-btn" id="random-match-btn" onclick="toggleRandomMatch()">랜덤 매칭</button>
                 </div>
                 <div class="online-join-row" id="online-join-row" style="display:none;">
                     <input type="text" id="room-code-input" placeholder="방 코드 입력" maxlength="8" autocomplete="off">
-                    <button type="button" class="online-btn" id="join-room-btn" onclick="joinRoomByCode()">참가</button>
-                    <button type="button" class="online-btn ghost" id="copy-room-btn" onclick="copyInviteCode()" style="display:none;">코드 복사</button>
+                    <button type="button" class="online-btn" id="join-room-btn" onclick="joinRoomByCode()">코드로 참가</button>
+                    <button type="button" class="online-btn ghost" id="join-room-close-btn" onclick="closeJoinRoomPanel()">닫기</button>
                 </div>
                 <div class="online-room-box" id="online-room-box" style="display:none;">
                     <div class="online-room-label">현재 방 코드</div>
                     <div class="online-room-code" id="online-room-code">------</div>
+                    <div class="online-room-actions">
+                        <button type="button" class="online-btn ghost" id="copy-room-btn" onclick="copyInviteCode()" style="display:none;">코드 복사</button>
+                    </div>
                 </div>
                 <div class="online-status-text" id="online-status-text">닉네임을 정한 뒤 방을 만들거나 친구의 방 코드로 참가할 수 있습니다.</div>
             </div>

@@ -113,7 +113,8 @@ var onlineState = {
     applyingRemoteState: false,
     syncingState: false,
     lastSyncedStateHash: null,
-    claimingDisconnectWin: false
+    claimingDisconnectWin: false,
+    showJoinRoomInput: false
 };
 
 // ★ Stockfish 엔진 초기화
@@ -353,27 +354,33 @@ function updateOnlineUI() {
     var roomCode = document.getElementById('online-room-code');
     var joinRow = document.getElementById('online-join-row');
     var copyBtn = document.getElementById('copy-room-btn');
-    var showInviteCodeInput = !!(
-        onlineState.roomId &&
-        onlineState.roomData &&
-        onlineState.roomData.type === 'invite' &&
-        onlineState.roomData.hostUid === onlineState.authUid
-    );
-    if (joinRow) joinRow.style.display = showInviteCodeInput ? 'grid' : 'none';
-    if (roomBox) roomBox.style.display = onlineState.roomId ? 'block' : 'none';
-    if (roomCode) roomCode.textContent = onlineState.roomId || '------';
-    if (copyBtn) copyBtn.style.display = onlineState.roomId ? 'inline-block' : 'none';
-
-    var cancelBtn = document.getElementById('cancel-match-btn');
-    if (cancelBtn) cancelBtn.style.display = (onlineState.inQueue || (onlineState.roomData && onlineState.roomData.status === 'waiting')) ? 'inline-block' : 'none';
-
+    var joinToggleBtn = document.getElementById('join-room-toggle-btn');
     var createBtn = document.getElementById('create-room-btn');
     var randomBtn = document.getElementById('random-match-btn');
     var joinBtn = document.getElementById('join-room-btn');
     var canStartOnline = onlineState.authReady && !!nickname;
-    if (createBtn) createBtn.disabled = !canStartOnline;
-    if (randomBtn) randomBtn.disabled = !canStartOnline;
+    var hasActiveGame = !!(onlineState.roomData && onlineState.roomData.status === 'playing');
+    var showInviteRoomInfo = !!(
+        onlineState.roomId &&
+        onlineState.roomData &&
+        onlineState.roomData.type === 'invite'
+    );
+    if (joinRow) joinRow.style.display = (onlineState.showJoinRoomInput && !hasActiveGame) ? 'grid' : 'none';
+    if (roomBox) roomBox.style.display = showInviteRoomInfo ? 'block' : 'none';
+    if (roomCode) roomCode.textContent = onlineState.roomId || '------';
+    if (copyBtn) copyBtn.style.display = showInviteRoomInfo ? 'inline-block' : 'none';
+
+    if (createBtn) createBtn.disabled = !canStartOnline || hasActiveGame;
+    if (joinToggleBtn) {
+        joinToggleBtn.disabled = !canStartOnline || hasActiveGame;
+        joinToggleBtn.classList.toggle('active', !!onlineState.showJoinRoomInput && !hasActiveGame);
+    }
     if (joinBtn) joinBtn.disabled = !canStartOnline;
+    if (randomBtn) {
+        randomBtn.disabled = (!canStartOnline && !onlineState.inQueue) || hasActiveGame;
+        randomBtn.textContent = onlineState.inQueue ? '매칭 취소' : '랜덤 매칭';
+        randomBtn.classList.toggle('danger', !!onlineState.inQueue);
+    }
 
     var startBtn = document.getElementById('start-game-btn');
     if (startBtn) startBtn.style.display = isOnlineMode() ? 'none' : 'block';
@@ -743,7 +750,28 @@ function resetOnlineSessionState() {
     onlineState.queueRef = null;
     onlineState.gameRevision = -1;
     onlineState.lastSyncedStateHash = null;
+    onlineState.showJoinRoomInput = false;
     updateOnlineUI();
+}
+
+function toggleJoinRoomPanel() {
+    if (onlineState.roomData && onlineState.roomData.status === 'playing') return;
+    onlineState.showJoinRoomInput = !onlineState.showJoinRoomInput;
+    updateOnlineUI();
+}
+
+function closeJoinRoomPanel() {
+    if (!onlineState.showJoinRoomInput) return;
+    onlineState.showJoinRoomInput = false;
+    updateOnlineUI();
+}
+
+function toggleRandomMatch() {
+    if (onlineState.inQueue) {
+        cancelOnlineWaiting();
+        return;
+    }
+    startRandomMatch();
 }
 
 function subscribeToRoom(roomId) {
@@ -805,6 +833,7 @@ function syncOnlineGameState(reason) {
 function createInviteRoom() {
     ensureFirebaseReady().then(function() {
         cancelOnlineWaiting();
+        onlineState.showJoinRoomInput = false;
         var nickname = requireOnlineNickname();
         var roomId = generateRoomCode();
         var roomData = {
@@ -858,6 +887,7 @@ function joinRoomByCode() {
             return room;
         }).then(function(result) {
             if (!result.committed) throw new Error('참가할 수 없는 방입니다.');
+            onlineState.showJoinRoomInput = false;
             subscribeToRoom(roomId);
             firebaseDb.ref('rooms/' + roomId + '/updatedAt').set(firebase.database.ServerValue.TIMESTAMP);
             setLobbyOnlineMessage('방에 참가했습니다.');
@@ -930,6 +960,7 @@ function createRandomRoomWithOpponent(opponent, nickname) {
 function startRandomMatch() {
     ensureFirebaseReady().then(function() {
         cancelOnlineWaiting();
+        onlineState.showJoinRoomInput = false;
         var queueKey = getMatchmakingKey();
         var nickname = requireOnlineNickname();
         var queueRef = firebaseDb.ref('matchmaking/' + queueKey);

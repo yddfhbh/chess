@@ -246,6 +246,18 @@ body {
     color: #06141d;
 }
 
+.online-btn.active {
+    border-color: var(--gold);
+    background: rgba(240, 208, 96, 0.12);
+    color: var(--gold);
+}
+
+.online-btn.danger {
+    border-color: rgba(255, 107, 107, 0.35);
+    background: rgba(255, 107, 107, 0.12);
+    color: #ffb3b3;
+}
+
 .online-btn.ghost {
     background: transparent;
 }
@@ -274,6 +286,12 @@ body {
     font-size: 1.4em;
     font-weight: 700;
     letter-spacing: 0.16em;
+}
+
+.online-room-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
 }
 
 .online-status-text {
