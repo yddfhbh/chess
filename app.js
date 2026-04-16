@@ -64,6 +64,8 @@ var dragState = null;
 var turnStartedAt = null;
 var gameStartedAt = null;
 var finalGameResult = '*';
+var finalGameTermination = '';
+var gameEndedAt = null;
 var selectedInteractionMode = null;
 var selectedPiece = null;
 var premoveQueue = [];
@@ -331,6 +333,16 @@ function applyMoveToState(state, move) {
 
 function clearPremoveQueue() {
     premoveQueue = [];
+}
+
+function cancelPremove(event) {
+    if (premoveQueue.length === 0) return false;
+    if (event && event.preventDefault) event.preventDefault();
+    cleanupDragState();
+    clearPremoveQueue();
+    renderBoard();
+    updateUI();
+    return true;
 }
 
 function buildPremovePreviewState() {
@@ -731,6 +743,8 @@ function backToLobby() {
     clearPremoveQueue();
     turnStartedAt = null;
     finalGameResult = '*';
+    finalGameTermination = '';
+    gameEndedAt = null;
     aiThinking = false;
     showAIThinking(false);
     // ★ 엔진 종료
@@ -757,6 +771,12 @@ function pieceColor(piece) { if (!piece) return null; return isWhite(piece) ? 'w
 function opponentColor(color) { return color === 'white' ? 'black' : 'white'; }
 function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 function cloneBoard(b) { return b.map(function(row) { return row.slice(); }); }
+
+function setGameConclusion(result, termination) {
+    finalGameResult = result || '*';
+    finalGameTermination = termination || '';
+    gameEndedAt = new Date();
+}
 
 function cloneState() {
     return {
@@ -1000,14 +1020,14 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
 
     if (!hasLegal) {
         gameOver = true; stopTimer();
-        finalGameResult = inCheck ? (color === 'white' ? '1-0' : '0-1') : '1/2-1/2';
+        setGameConclusion(inCheck ? (color === 'white' ? '1-0' : '0-1') : '1/2-1/2', inCheck ? '체크메이트' : '스테일메이트');
         if (inCheck) { showGameOver('체크메이트! 🏆', (color === 'white' ? gameSetting.whiteName : gameSetting.blackName) + '의 승리입니다!'); }
         else { showGameOver('스테일메이트!', '무승부입니다.'); }
     } else if (isInsufficientMaterial()) {
-        finalGameResult = '1/2-1/2';
+        setGameConclusion('1/2-1/2', '기물 부족');
         gameOver = true; stopTimer(); showGameOver('기물 부족!', '무승부입니다.');
     } else if (halfMoveClock >= 100) {
-        finalGameResult = '1/2-1/2';
+        setGameConclusion('1/2-1/2', '50수 규칙');
         gameOver = true; stopTimer(); showGameOver('50수 규칙!', '무승부입니다.');
     }
     turnStartedAt = gameOver ? null : Date.now();
@@ -1064,6 +1084,11 @@ function addMoveToHistory(notation, color, durationMs, clockAfterMove) {
 function renderBoard() {
     var chessboard = document.getElementById('chessboard');
     var premoveState = premoveQueue.length > 0 ? buildPremovePreviewState() : null;
+    chessboard.oncontextmenu = function(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (cancelPremove()) return false;
+        return false;
+    };
     chessboard.innerHTML = '';
     for (var r = 0; r < 8; r++) {
         for (var c = 0; c < 8; c++) {
@@ -1196,6 +1221,7 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol) {
 }
 
 function showGameOver(title, message) {
+    if (!gameEndedAt) gameEndedAt = new Date();
     document.getElementById('gameover-title').textContent = title;
     document.getElementById('gameover-message').textContent = message;
     document.getElementById('gameover-modal').classList.add('active');
@@ -1364,21 +1390,65 @@ function formatPGNDate(date) {
 
 function formatTimeControlTag() {
     if (gameSetting.unlimited) return '-';
+    if (!gameSetting.increment) return String(gameSetting.minutes * 60);
     return String(gameSetting.minutes * 60) + '+' + String(gameSetting.increment);
+}
+
+function formatPGNClockValue(totalSeconds) {
+    var safeSeconds = Math.max(0, totalSeconds || 0);
+    var wholeSeconds = Math.floor(safeSeconds);
+    var hours = Math.floor(wholeSeconds / 3600);
+    var minutes = Math.floor((wholeSeconds % 3600) / 60);
+    var seconds = wholeSeconds % 60;
+    var fraction = safeSeconds - wholeSeconds;
+    var clock = hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+    if (fraction > 0) clock += String(fraction.toFixed(1)).slice(1);
+    return clock;
+}
+
+function formatPGNTimestamp(durationMs) {
+    return String(Math.max(0, Math.round((durationMs || 0) / 1000)));
+}
+
+function formatPGNEndTime(date) {
+    var safeDate = date || new Date();
+    var hours = safeDate.getHours();
+    var minutes = String(safeDate.getMinutes()).padStart(2, '0');
+    var seconds = String(safeDate.getSeconds()).padStart(2, '0');
+    var offsetMinutes = -safeDate.getTimezoneOffset();
+    var sign = offsetMinutes >= 0 ? '+' : '-';
+    var absoluteOffset = Math.abs(offsetMinutes);
+    var offsetHours = String(Math.floor(absoluteOffset / 60)).padStart(2, '0');
+    var offsetRemain = String(absoluteOffset % 60).padStart(2, '0');
+    return hours + ':' + minutes + ':' + seconds + ' GMT' + sign + offsetHours + offsetRemain;
+}
+
+function getPGNEventTag() {
+    if (gameSetting.mode === 'ai') return 'Local Chess vs AI';
+    return 'Local Chess';
+}
+
+function getPGNTerminationTag() {
+    if (finalGameTermination) return finalGameTermination;
+    if (finalGameResult === '*') return 'Unterminated';
+    return 'Normal';
 }
 
 function buildPGN() {
     var startedAt = gameStartedAt || new Date();
+    var endedAt = gameEndedAt || startedAt;
     var result = finalGameResult || '*';
     var tags = [
-        ['Event', 'Local Game'],
+        ['Event', getPGNEventTag()],
         ['Site', 'Local'],
         ['Date', formatPGNDate(startedAt)],
-        ['Round', '-'],
+        ['Round', '?'],
         ['White', gameSetting.whiteName || 'White'],
         ['Black', gameSetting.blackName || 'Black'],
         ['Result', result],
-        ['TimeControl', formatTimeControlTag()]
+        ['TimeControl', formatTimeControlTag()],
+        ['Termination', getPGNTerminationTag()],
+        ['EndTime', formatPGNEndTime(endedAt)]
     ];
 
     var lines = tags.map(function(tag) {
@@ -1393,13 +1463,14 @@ function buildPGN() {
         }
 
         var suffix = move.notation;
-        if (typeof move.durationMs === 'number') {
-            suffix += ' {[%emt ' + formatDurationForPGN(move.durationMs) + ']';
-            if (move.clockAfterMove !== null && move.clockAfterMove !== undefined) {
-                suffix += ' [%clk ' + formatTime(move.clockAfterMove) + ']';
-            }
-            suffix += '}';
+        var annotations = [];
+        if (move.clockAfterMove !== null && move.clockAfterMove !== undefined) {
+            annotations.push('[%clk ' + formatPGNClockValue(move.clockAfterMove) + ']');
         }
+        if (typeof move.durationMs === 'number') {
+            annotations.push('[%timestamp ' + formatPGNTimestamp(move.durationMs) + ']');
+        }
+        if (annotations.length > 0) suffix += ' {' + annotations.join('') + '}';
         moves.push(suffix);
     }
     moves.push(result);
@@ -1544,10 +1615,10 @@ function startTimer() {
         if (gameOver) { stopTimer(); return; }
         if (currentTurn === 'white') {
             whiteTime--;
-            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; finalGameResult = '0-1'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
+            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; setGameConclusion('0-1', '시간 초과'); turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
         } else {
             blackTime--;
-            if (blackTime <= 0) { blackTime = 0; gameOver = true; finalGameResult = '1-0'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
+            if (blackTime <= 0) { blackTime = 0; gameOver = true; setGameConclusion('1-0', '시간 초과'); turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
         }
         updateTimerDisplay();
     }, 1000);
@@ -1561,6 +1632,8 @@ function undoMove() {
     cleanupDragState();
     clearPremoveQueue();
     finalGameResult = '*';
+    finalGameTermination = '';
+    gameEndedAt = null;
     // ★ AI가 생각 중이면 중단
     if (aiThinking && stockfishWorker) {
         stockfishWorker.postMessage('stop');
@@ -1599,6 +1672,8 @@ function initGame() {
     gameStartedAt = new Date();
     turnStartedAt = Date.now();
     finalGameResult = '*';
+    finalGameTermination = '';
+    gameEndedAt = null;
     board = INITIAL_BOARD.map(function(row) { return row.slice(); });
     currentTurn = 'white'; selectedSquare = null; possibleMoves = [];
     moveHistory = []; boardHistory = [];
@@ -1658,6 +1733,8 @@ function restartGame() {
     cleanupDragState();
     clearPremoveQueue();
     finalGameResult = '*';
+    finalGameTermination = '';
+    gameEndedAt = null;
     if (gameSetting.mode === 'ai' && stockfishWorker) {
         stockfishWorker.postMessage('stop');
         stockfishWorker.postMessage('ucinewgame');
