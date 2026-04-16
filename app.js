@@ -423,6 +423,84 @@ function buildInitialOnlineGameState() {
     };
 }
 
+function toIndexedArray(value) {
+    if (Array.isArray(value)) return value.slice();
+    if (!value || typeof value !== 'object') return [];
+    var arr = [];
+    Object.keys(value).forEach(function(key) {
+        var index = Number(key);
+        if (!Number.isInteger(index) || index < 0) return;
+        arr[index] = value[key];
+    });
+    return arr;
+}
+
+function normalizePieceList(value) {
+    return toIndexedArray(value).map(function(piece) {
+        return typeof piece === 'string' ? piece : '';
+    }).filter(function(piece) {
+        return !!piece;
+    });
+}
+
+function normalizeCoordinatePair(value) {
+    var pair = toIndexedArray(value);
+    if (pair.length < 2) return null;
+    if (typeof pair[0] !== 'number' || typeof pair[1] !== 'number') return null;
+    return [pair[0], pair[1]];
+}
+
+function normalizeBoard(value) {
+    var rows = toIndexedArray(value);
+    var normalized = [];
+    for (var r = 0; r < 8; r++) {
+        var cells = toIndexedArray(rows[r]);
+        var row = [];
+        for (var c = 0; c < 8; c++) {
+            row[c] = typeof cells[c] === 'string' ? cells[c] : '';
+        }
+        normalized[r] = row;
+    }
+    return normalized;
+}
+
+function normalizeSerializedOnlineGameState(serializedState) {
+    var fallback = buildInitialOnlineGameState();
+    var source = serializedState && typeof serializedState === 'object' ? serializedState : fallback;
+    var rawState = source.state && typeof source.state === 'object' ? source.state : fallback.state;
+    var boardSource = rawState.board == null ? fallback.state.board : rawState.board;
+    var initialSeconds = gameSetting.unlimited ? 0 : gameSetting.minutes * 60;
+    return {
+        state: {
+            board: normalizeBoard(boardSource),
+            currentTurn: rawState.currentTurn === 'black' ? 'black' : 'white',
+            castlingRights: {
+                K: rawState.castlingRights ? rawState.castlingRights.K !== false : true,
+                Q: rawState.castlingRights ? rawState.castlingRights.Q !== false : true,
+                k: rawState.castlingRights ? rawState.castlingRights.k !== false : true,
+                q: rawState.castlingRights ? rawState.castlingRights.q !== false : true
+            },
+            enPassantTarget: normalizeCoordinatePair(rawState.enPassantTarget),
+            halfMoveClock: typeof rawState.halfMoveClock === 'number' ? rawState.halfMoveClock : 0,
+            fullMoveNumber: typeof rawState.fullMoveNumber === 'number' ? rawState.fullMoveNumber : 1,
+            capturedByWhite: normalizePieceList(rawState.capturedByWhite),
+            capturedByBlack: normalizePieceList(rawState.capturedByBlack),
+            lastMoveFrom: normalizeCoordinatePair(rawState.lastMoveFrom),
+            lastMoveTo: normalizeCoordinatePair(rawState.lastMoveTo),
+            whiteTime: typeof rawState.whiteTime === 'number' ? rawState.whiteTime : initialSeconds,
+            blackTime: typeof rawState.blackTime === 'number' ? rawState.blackTime : initialSeconds,
+            firstMoveMade: !!rawState.firstMoveMade
+        },
+        moveHistory: toIndexedArray(source.moveHistory).filter(function(move) {
+            return !!move && typeof move === 'object';
+        }),
+        finalGameResult: typeof source.finalGameResult === 'string' ? source.finalGameResult : '*',
+        finalGameTermination: typeof source.finalGameTermination === 'string' ? source.finalGameTermination : '',
+        gameStartedAt: source.gameStartedAt || fallback.gameStartedAt,
+        gameEndedAt: source.gameEndedAt || null
+    };
+}
+
 function serializeCurrentGameState() {
     return {
         state: cloneState(),
@@ -481,11 +559,11 @@ function getOnlineGameOverMessage() {
 }
 
 function applyOnlineGameState(serializedState) {
-    if (!serializedState || !serializedState.state) return;
+    serializedState = normalizeSerializedOnlineGameState(serializedState);
     onlineState.applyingRemoteState = true;
     cleanupDragState();
     restoreState(serializedState.state);
-    moveHistory = (serializedState.moveHistory || []).map(function(move) {
+    moveHistory = serializedState.moveHistory.map(function(move) {
         return {
             notation: move.notation,
             color: move.color,
@@ -1374,7 +1452,7 @@ function isBlack(piece) { return piece && piece === piece.toLowerCase(); }
 function pieceColor(piece) { if (!piece) return null; return isWhite(piece) ? 'white' : 'black'; }
 function opponentColor(color) { return color === 'white' ? 'black' : 'white'; }
 function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
-function cloneBoard(b) { return b.map(function(row) { return row.slice(); }); }
+function cloneBoard(b) { return normalizeBoard(b); }
 
 function setGameConclusion(result, termination) {
     finalGameResult = result || '*';
