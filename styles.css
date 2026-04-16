@@ -248,9 +248,12 @@ body {
 
 /* ★ AI 상태 표시 */
 .ai-thinking-indicator {
-    display: none;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
+    width: 100%;
+    min-height: 36px;
     padding: 6px 14px;
     background: rgba(79, 195, 247, 0.1);
     border: 1px solid rgba(79, 195, 247, 0.3);
@@ -258,10 +261,15 @@ body {
     font-size: 0.85em;
     color: var(--accent);
     margin-top: 6px;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
 }
 
 .ai-thinking-indicator.visible {
-    display: flex;
+    visibility: visible;
+    opacity: 1;
 }
 
 .ai-spinner {
@@ -467,6 +475,7 @@ body {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    width: calc(var(--board-size) + 36px);
 }
 
 .board-wrapper {
@@ -571,7 +580,19 @@ body {
     border-radius: 8px;
     font-size: 0.95em;
     text-align: center;
-    min-width: 300px;
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#status {
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .side-panel {
@@ -613,10 +634,14 @@ body {
 .player-name { font-weight: 600; font-size: 0.95em; }
 
 .player-timer {
+    display: inline-block;
+    min-width: 5ch;
     font-size: 1.5em;
     font-weight: 700;
     font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
     color: var(--text-primary);
+    text-align: right;
 }
 
 .player-timer.low-time { color: var(--danger); animation: pulse 1s infinite; }
@@ -683,6 +708,7 @@ body {
     overflow-y: auto;
     font-family: 'Courier New', monospace;
     font-size: 0.9em;
+    scrollbar-gutter: stable;
 }
 
 #move-list::-webkit-scrollbar { width: 4px; }
