@@ -128,6 +128,125 @@ body {
     cursor: not-allowed;
 }
 
+/* AI 설정 섹션 */
+.ai-settings {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 25px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.05);
+    display: none;
+}
+
+.ai-settings.visible { display: block; }
+
+.ai-settings h2 {
+    font-size: 1.15em;
+    margin-bottom: 18px;
+    color: var(--gold);
+}
+
+.ai-option-group {
+    margin-bottom: 18px;
+}
+
+.ai-option-group label {
+    display: block;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.ai-color-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.ai-color-btn {
+    padding: 12px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    font-size: 0.9em;
+}
+
+.ai-color-btn:hover { border-color: var(--accent); }
+.ai-color-btn.active { border-color: var(--gold); background: rgba(240, 208, 96, 0.1); color: var(--gold); }
+
+.ai-level-slider {
+    width: 100%;
+    margin: 10px 0;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+}
+
+.ai-level-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--gold);
+    cursor: pointer;
+}
+
+.ai-level-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--gold);
+    cursor: pointer;
+    border: none;
+}
+
+.ai-level-display {
+    text-align: center;
+    padding: 8px;
+    background: rgba(240, 208, 96, 0.08);
+    border-radius: 8px;
+    color: var(--gold);
+    font-size: 0.95em;
+    font-weight: 600;
+}
+
+.ai-status-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(79, 195, 247, 0.1);
+    border: 1px solid rgba(79, 195, 247, 0.2);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    color: var(--accent);
+}
+
+.ai-status-bar.visible { display: flex; }
+
+.ai-thinking-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(79, 195, 247, 0.3);
+    border-top: 2px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 /* 시간 프리셋 */
 .time-presets {
     display: grid;
@@ -688,15 +807,35 @@ body {
                     <span class="mode-label">로컬 PvP</span>
                     <span class="mode-desc">한 화면에서 두 명이 플레이</span>
                 </div>
-                <div class="mode-btn disabled" data-mode="ai">
+                <div class="mode-btn" data-mode="ai" onclick="selectMode('ai')">
                     <span class="mode-icon">🤖</span>
                     <span class="mode-label">vs AI</span>
-                    <span class="mode-desc">준비 중...</span>
+                    <span class="mode-desc">Stockfish 18 엔진</span>
                 </div>
                 <div class="mode-btn disabled" data-mode="online">
                     <span class="mode-icon">🌐</span>
                     <span class="mode-label">온라인 PvP</span>
                     <span class="mode-desc">준비 중...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 설정 (AI 모드 선택 시 표시) -->
+        <div id="ai-settings-section" class="ai-settings">
+            <h2>🤖 AI 설정</h2>
+            <div class="ai-option-group">
+                <label>내 색상 선택</label>
+                <div class="ai-color-grid">
+                    <div class="ai-color-btn active" data-color="white" onclick="selectAIColor('white')">⬜ 백 (선공)</div>
+                    <div class="ai-color-btn" data-color="black" onclick="selectAIColor('black')">⬛ 흑 (후공)</div>
+                    <div class="ai-color-btn" data-color="random" onclick="selectAIColor('random')">🎲 랜덤</div>
+                </div>
+            </div>
+            <div class="ai-option-group">
+                <label>AI 난이도: <strong id="ai-level-text">레벨 10 (보통)</strong></label>
+                <input type="range" class="ai-level-slider" id="ai-level-slider" min="1" max="20" value="10" oninput="updateAILevel()">
+                <div class="ai-level-display" id="ai-level-info">
+                    🧠 탐색 깊이: 10 | Skill Level: 10
                 </div>
             </div>
         </div>
@@ -770,14 +909,14 @@ body {
         </div>
 
         <!-- 플레이어 이름 -->
-        <div class="lobby-section">
+        <div class="lobby-section" id="player-names-section">
             <h2>👤 플레이어</h2>
             <div class="player-inputs">
                 <div class="player-input-group">
                     <label>⬜ 백 플레이어</label>
                     <input type="text" id="white-name" placeholder="Player 1" maxlength="20">
                 </div>
-                <div class="player-input-group">
+                <div class="player-input-group" id="black-name-group">
                     <label>⬛ 흑 플레이어</label>
                     <input type="text" id="black-name" placeholder="Player 2" maxlength="20">
                 </div>
@@ -809,6 +948,12 @@ body {
 
         <!-- 사이드 패널 -->
         <div class="side-panel">
+            <!-- AI 상태 표시 -->
+            <div class="ai-status-bar" id="ai-status-bar">
+                <div class="ai-thinking-spinner"></div>
+                <span id="ai-status-text">🤖 AI가 생각 중...</span>
+            </div>
+
             <!-- 흑 플레이어 -->
             <div class="player-card">
                 <div class="player-avatar black-avatar">⚫</div>
@@ -878,7 +1023,7 @@ body {
 
 <script>
 // ============================================================
-//  ♟️ 체스 게임 엔진 (순수 JavaScript) - SVG 기물 버전
+//  ♟️ 체스 게임 엔진 (순수 JavaScript) - SVG 기물 + Stockfish AI
 // ============================================================
 
 // ── SVG 기물 이미지 (인라인) ──
@@ -912,7 +1057,11 @@ var INITIAL_BOARD = [
 // ── 게임 설정 ──
 var gameSetting = {
     mode: 'pvp', minutes: 5, increment: 0,
-    whiteName: '백 (White)', blackName: '흑 (Black)', unlimited: false
+    whiteName: '백 (White)', blackName: '흑 (Black)', unlimited: false,
+    aiColor: 'black',       // AI가 플레이하는 색상
+    playerColor: 'white',   // 플레이어가 플레이하는 색상
+    aiLevel: 10,            // AI 난이도 (1~20)
+    aiDepth: 10             // 탐색 깊이
 };
 
 // ── 게임 상태 ──
@@ -937,14 +1086,367 @@ var lastMoveFrom = null;
 var lastMoveTo = null;
 var firstMoveMade = false;
 
+// ── Stockfish AI 관련 ──
+var stockfishWorker = null;
+var stockfishReady = false;
+var aiThinking = false;
+var moveHistoryUCI = []; // UCI 형식 수 기록 (e2e4, d7d5 등)
+
+// ============================================================
+//  Stockfish 엔진 로드 & 통신
+// ============================================================
+
+/**
+ * Stockfish 엔진을 Web Worker로 로드합니다.
+ * 
+ * 사용 방법 (아래 중 하나를 선택):
+ * 
+ * 1) 로컬 파일: npm install stockfish 후 
+ *    src/stockfish-18-lite-single.js 파일을 같은 디렉토리에 배치
+ * 
+ * 2) CDN: unpkg 또는 jsdelivr에서 로드
+ */
+function loadStockfish() {
+    if (stockfishWorker) {
+        stockfishWorker.terminate();
+        stockfishWorker = null;
+    }
+    stockfishReady = false;
+
+    // Stockfish 엔진 파일 경로 목록 (우선순위 순)
+    var enginePaths = [
+        // 1. 같은 디렉토리의 로컬 파일 (권장)
+        'stockfish-18-lite-single.js',
+        // 2. npm 패키지 경로
+        'node_modules/stockfish/src/stockfish-18-lite-single.js',
+        // 3. CDN fallback
+        'https://cdn.jsdelivr.net/npm/stockfish@18/src/stockfish-18-lite-single.js',
+    ];
+
+    tryLoadEngine(enginePaths, 0);
+}
+
+function tryLoadEngine(paths, index) {
+    if (index >= paths.length) {
+        console.error('Stockfish 엔진을 로드할 수 없습니다. 내장 AI로 대체합니다.');
+        stockfishReady = false;
+        // 내장 간이 AI로 폴백
+        return;
+    }
+
+    try {
+        var path = paths[index];
+        console.log('Stockfish 로드 시도: ' + path);
+        
+        stockfishWorker = new Worker(path);
+        
+        var initTimeout = setTimeout(function() {
+            console.warn('Stockfish 초기화 타임아웃, 다음 경로 시도...');
+            stockfishWorker.terminate();
+            stockfishWorker = null;
+            tryLoadEngine(paths, index + 1);
+        }, 10000);
+
+        stockfishWorker.onmessage = function(event) {
+            var line = typeof event === 'string' ? event : event.data;
+            handleStockfishMessage(line);
+            
+            // 엔진 준비 완료 감지
+            if (line && line.indexOf('uciok') !== -1) {
+                clearTimeout(initTimeout);
+                stockfishReady = true;
+                console.log('✅ Stockfish 18 엔진 로드 완료!');
+                // 엔진 설정
+                stockfishWorker.postMessage('isready');
+            }
+        };
+
+        stockfishWorker.onerror = function(e) {
+            console.warn('Worker 에러, 다음 경로 시도...', e);
+            clearTimeout(initTimeout);
+            stockfishWorker.terminate();
+            stockfishWorker = null;
+            tryLoadEngine(paths, index + 1);
+        };
+
+        // UCI 프로토콜 시작
+        stockfishWorker.postMessage('uci');
+
+    } catch (e) {
+        console.warn('Worker 생성 실패, 다음 경로 시도...', e);
+        tryLoadEngine(paths, index + 1);
+    }
+}
+
+function handleStockfishMessage(line) {
+    if (!line) return;
+    // console.log('SF:', line); // 디버그용
+
+    // bestmove 응답 처리
+    if (line.indexOf('bestmove') === 0) {
+        var parts = line.split(' ');
+        var bestMove = parts[1];
+        if (bestMove && bestMove !== '(none)') {
+            aiThinking = false;
+            showAIStatus(false);
+            executeAIMove(bestMove);
+        }
+    }
+    
+    // readyok 응답
+    if (line.indexOf('readyok') !== -1) {
+        // 엔진 설정 적용
+        if (stockfishWorker) {
+            stockfishWorker.postMessage('setoption name Skill Level value ' + gameSetting.aiLevel);
+        }
+    }
+}
+
+function sendToStockfish(cmd) {
+    if (stockfishWorker && stockfishReady) {
+        stockfishWorker.postMessage(cmd);
+    }
+}
+
+// ============================================================
+//  AI 관련 함수
+// ============================================================
+
+function showAIStatus(show) {
+    var bar = document.getElementById('ai-status-bar');
+    if (show) {
+        bar.classList.add('visible');
+    } else {
+        bar.classList.remove('visible');
+    }
+}
+
+function isAITurn() {
+    return gameSetting.mode === 'ai' && currentTurn === gameSetting.aiColor && !gameOver;
+}
+
+function requestAIMove() {
+    if (!isAITurn() || aiThinking) return;
+    
+    aiThinking = true;
+    showAIStatus(true);
+    document.getElementById('ai-status-text').textContent = '🤖 AI가 생각 중...';
+
+    if (stockfishWorker && stockfishReady) {
+        // FEN 생성하여 Stockfish에 전달
+        var fen = boardToFEN();
+        sendToStockfish('position fen ' + fen);
+        sendToStockfish('go depth ' + gameSetting.aiDepth);
+    } else {
+        // Stockfish 미로드 시 내장 간이 AI 사용
+        setTimeout(function() {
+            var move = getBuiltinAIMove();
+            if (move) {
+                aiThinking = false;
+                showAIStatus(false);
+                executeMove(move.fromRow, move.fromCol, move.toRow, move.toCol, move.promotion);
+                // AI 수 후 다시 AI 차례인지 확인 (연속 수는 없지만 안전장치)
+            }
+        }, 500 + Math.random() * 500);
+    }
+}
+
+// FEN 문자열 생성
+function boardToFEN() {
+    var fen = '';
+    for (var r = 0; r < 8; r++) {
+        var empty = 0;
+        for (var c = 0; c < 8; c++) {
+            var piece = board[r][c];
+            if (piece) {
+                if (empty > 0) { fen += empty; empty = 0; }
+                fen += piece;
+            } else {
+                empty++;
+            }
+        }
+        if (empty > 0) fen += empty;
+        if (r < 7) fen += '/';
+    }
+    
+    // 차례
+    fen += ' ' + (currentTurn === 'white' ? 'w' : 'b');
+    
+    // 캐슬링
+    var castling = '';
+    if (castlingRights.K) castling += 'K';
+    if (castlingRights.Q) castling += 'Q';
+    if (castlingRights.k) castling += 'k';
+    if (castlingRights.q) castling += 'q';
+    fen += ' ' + (castling || '-');
+    
+    // 앙파상
+    if (enPassantTarget) {
+        var files = 'abcdefgh';
+        var ranks = '87654321';
+        fen += ' ' + files[enPassantTarget[1]] + ranks[enPassantTarget[0]];
+    } else {
+        fen += ' -';
+    }
+    
+    // 반수 시계 & 전체 수
+    fen += ' ' + halfMoveClock + ' ' + fullMoveNumber;
+    
+    return fen;
+}
+
+// Stockfish의 UCI 수(예: e2e4, e7e8q)를 보드 좌표로 변환하여 실행
+function executeAIMove(uciMove) {
+    if (gameOver) return;
+    
+    var files = 'abcdefgh';
+    var ranks = '87654321';
+    
+    var fromCol = files.indexOf(uciMove[0]);
+    var fromRow = ranks.indexOf(uciMove[1]);
+    var toCol = files.indexOf(uciMove[2]);
+    var toRow = ranks.indexOf(uciMove[3]);
+    
+    // 프로모션 처리
+    var promotion = null;
+    if (uciMove.length > 4) {
+        var promoChar = uciMove[4];
+        if (gameSetting.aiColor === 'white') {
+            promotion = promoChar.toUpperCase();
+        } else {
+            promotion = promoChar.toLowerCase();
+        }
+    }
+    
+    if (fromRow >= 0 && fromCol >= 0 && toRow >= 0 && toCol >= 0) {
+        executeMove(fromRow, fromCol, toRow, toCol, promotion);
+    }
+}
+
+// 내장 간이 AI (Stockfish 로드 실패 시 폴백)
+function getBuiltinAIMove() {
+    var aiColor = gameSetting.aiColor;
+    var allMoves = [];
+    
+    for (var r = 0; r < 8; r++) {
+        for (var c = 0; c < 8; c++) {
+            if (board[r][c] && pieceColor(board[r][c]) === aiColor) {
+                var moves = legalMoves(r, c);
+                for (var i = 0; i < moves.length; i++) {
+                    var score = evaluateMove(r, c, moves[i][0], moves[i][1]);
+                    allMoves.push({
+                        fromRow: r, fromCol: c,
+                        toRow: moves[i][0], toCol: moves[i][1],
+                        score: score,
+                        promotion: null
+                    });
+                }
+            }
+        }
+    }
+    
+    if (allMoves.length === 0) return null;
+    
+    // 프로모션 처리
+    allMoves.forEach(function(m) {
+        var piece = board[m.fromRow][m.fromCol];
+        if (piece.toUpperCase() === 'P' && (m.toRow === 0 || m.toRow === 7)) {
+            m.promotion = aiColor === 'white' ? 'Q' : 'q';
+        }
+    });
+    
+    // 난이도에 따라 최선의 수 선택 확률 조정
+    allMoves.sort(function(a, b) { return b.score - a.score; });
+    
+    var level = gameSetting.aiLevel;
+    // 높은 레벨일수록 최선의 수를 선택
+    var topN = Math.max(1, Math.ceil(allMoves.length * (1 - level / 25)));
+    var idx = Math.floor(Math.random() * topN);
+    
+    return allMoves[idx];
+}
+
+function evaluateMove(fromRow, fromCol, toRow, toCol) {
+    var score = 0;
+    var target = board[toRow][toCol];
+    var piece = board[fromRow][fromCol];
+    
+    // 기물 가치
+    var pieceValues = { P: 1, N: 3, B: 3.2, R: 5, Q: 9, K: 0 };
+    
+    // 잡기 보너스
+    if (target) {
+        score += pieceValues[target.toUpperCase()] * 10;
+    }
+    
+    // 중앙 제어 보너스
+    if ((toRow >= 3 && toRow <= 4) && (toCol >= 3 && toCol <= 4)) score += 1;
+    if ((toRow >= 2 && toRow <= 5) && (toCol >= 2 && toCol <= 5)) score += 0.5;
+    
+    // 체크 보너스
+    var testBoard = cloneBoard(board);
+    testBoard[toRow][toCol] = testBoard[fromRow][fromCol];
+    testBoard[fromRow][fromCol] = '';
+    var opColor = pieceColor(piece) === 'white' ? 'black' : 'white';
+    if (isInCheck(testBoard, opColor)) score += 3;
+    
+    // 랜덤 요소
+    score += Math.random() * 2;
+    
+    return score;
+}
+
+// AI 난이도 설정
+function updateAILevel() {
+    var slider = document.getElementById('ai-level-slider');
+    var level = parseInt(slider.value);
+    gameSetting.aiLevel = level;
+    
+    // 난이도에 따른 탐색 깊이 매핑
+    if (level <= 3) gameSetting.aiDepth = level + 1;
+    else if (level <= 6) gameSetting.aiDepth = level;
+    else if (level <= 10) gameSetting.aiDepth = level + 2;
+    else if (level <= 15) gameSetting.aiDepth = level + 3;
+    else gameSetting.aiDepth = level + 4;
+    
+    var labels = ['', '초보자', '초보자', '초보', '초보', '초중급', '중급', '중급', '중상급', '중상급', '보통',
+                  '보통+', '상급', '상급', '고급', '고급', '전문가', '전문가', '마스터', '마스터', '최강'];
+    
+    document.getElementById('ai-level-text').textContent = '레벨 ' + level + ' (' + labels[level] + ')';
+    document.getElementById('ai-level-info').textContent = '🧠 탐색 깊이: ' + gameSetting.aiDepth + ' | Skill Level: ' + level;
+}
+
+function selectAIColor(color) {
+    document.querySelectorAll('.ai-color-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.querySelector('.ai-color-btn[data-color="' + color + '"]').classList.add('active');
+    
+    if (color === 'random') {
+        gameSetting.playerColor = Math.random() < 0.5 ? 'white' : 'black';
+    } else {
+        gameSetting.playerColor = color;
+    }
+    gameSetting.aiColor = gameSetting.playerColor === 'white' ? 'black' : 'white';
+}
+
 // ============================================================
 //  로비 로직
 // ============================================================
 function selectMode(mode) {
-    if (mode !== 'pvp') return;
+    if (mode === 'online') return;
     document.querySelectorAll('.mode-btn').forEach(function(btn) { btn.classList.remove('active'); });
     document.querySelector('.mode-btn[data-mode="' + mode + '"]').classList.add('active');
     gameSetting.mode = mode;
+    
+    // AI 설정 섹션 표시/숨김
+    var aiSection = document.getElementById('ai-settings-section');
+    if (mode === 'ai') {
+        aiSection.classList.add('visible');
+        // AI 모드에서는 흑 플레이어 이름 입력 숨김
+        document.getElementById('black-name-group').style.display = 'none';
+    } else {
+        aiSection.classList.remove('visible');
+        document.getElementById('black-name-group').style.display = '';
+    }
 }
 
 function applyPreset(minutes, increment, el) {
@@ -993,15 +1495,46 @@ function updateTimeSummary() {
 }
 
 function startGame() {
-    gameSetting.whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
-    gameSetting.blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
+    if (gameSetting.mode === 'ai') {
+        // 랜덤 색상 처리
+        var colorBtn = document.querySelector('.ai-color-btn.active');
+        if (colorBtn && colorBtn.dataset.color === 'random') {
+            gameSetting.playerColor = Math.random() < 0.5 ? 'white' : 'black';
+            gameSetting.aiColor = gameSetting.playerColor === 'white' ? 'black' : 'white';
+        }
+        
+        var playerName = document.getElementById('white-name').value.trim() || '플레이어';
+        var aiName = '🤖 Stockfish Lv.' + gameSetting.aiLevel;
+        
+        if (gameSetting.playerColor === 'white') {
+            gameSetting.whiteName = playerName;
+            gameSetting.blackName = aiName;
+        } else {
+            gameSetting.whiteName = aiName;
+            gameSetting.blackName = playerName;
+        }
+        
+        // Stockfish 엔진 로드
+        loadStockfish();
+    } else {
+        gameSetting.whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
+        gameSetting.blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
+    }
+    
     document.getElementById('lobby-screen').classList.remove('active');
     document.getElementById('game-screen').classList.add('active');
     initGame();
 }
 
 function backToLobby() {
-    stopTimer(); gameOver = true;
+    stopTimer(); gameOver = true; aiThinking = false;
+    showAIStatus(false);
+    if (stockfishWorker) {
+        sendToStockfish('stop');
+        stockfishWorker.terminate();
+        stockfishWorker = null;
+        stockfishReady = false;
+    }
     document.getElementById('gameover-modal').classList.remove('active');
     document.getElementById('promotion-modal').classList.remove('active');
     document.getElementById('game-screen').classList.remove('active');
@@ -1027,7 +1560,8 @@ function cloneState() {
         capturedByWhite: capturedByWhite.slice(), capturedByBlack: capturedByBlack.slice(),
         lastMoveFrom: lastMoveFrom ? lastMoveFrom.slice() : null,
         lastMoveTo: lastMoveTo ? lastMoveTo.slice() : null,
-        whiteTime: whiteTime, blackTime: blackTime, firstMoveMade: firstMoveMade
+        whiteTime: whiteTime, blackTime: blackTime, firstMoveMade: firstMoveMade,
+        moveHistoryUCI: moveHistoryUCI.slice()
     };
 }
 
@@ -1040,6 +1574,7 @@ function restoreState(state) {
     lastMoveFrom = state.lastMoveFrom ? state.lastMoveFrom.slice() : null;
     lastMoveTo = state.lastMoveTo ? state.lastMoveTo.slice() : null;
     whiteTime = state.whiteTime; blackTime = state.blackTime; firstMoveMade = state.firstMoveMade;
+    moveHistoryUCI = state.moveHistoryUCI ? state.moveHistoryUCI.slice() : [];
 }
 
 function findKing(b, color) {
@@ -1214,6 +1749,12 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     var isCapture = false;
     var isCastle = false;
 
+    // UCI 수 기록
+    var files = 'abcdefgh', ranks = '87654321';
+    var uciMove = files[fromCol] + ranks[fromRow] + files[toCol] + ranks[toRow];
+    if (promotionPiece) uciMove += promotionPiece.toLowerCase();
+    moveHistoryUCI.push(uciMove);
+
     if (captured) {
         isCapture = true;
         if (color === 'white') capturedByWhite.push(captured); else capturedByBlack.push(captured);
@@ -1252,7 +1793,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     if (toRow === 0 && toCol === 0) castlingRights.q = false;
 
     if (!isCastle) {
-        var files = 'abcdefgh', ranks = '87654321';
         var pType = piece.toUpperCase();
         if (pType === 'P') { moveNotation = (isCapture ? files[fromCol] + 'x' : '') + files[toCol] + ranks[toRow]; }
         else { moveNotation = pType + (isCapture ? 'x' : '') + files[toCol] + ranks[toRow]; }
@@ -1284,6 +1824,11 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     }
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
     renderBoard(); updateUI();
+    
+    // AI 차례인지 확인하고 AI 수 요청
+    if (!gameOver && isAITurn()) {
+        setTimeout(function() { requestAIMove(); }, 300);
+    }
 }
 
 function addMoveToHistory(notation, color) {
@@ -1356,6 +1901,10 @@ function renderLabels() {
 
 function onSquareClick(row, col) {
     if (gameOver) return;
+    
+    // AI 차례에는 클릭 무시
+    if (gameSetting.mode === 'ai' && currentTurn === gameSetting.aiColor) return;
+    
     var piece = board[row][col];
     if (selectedSquare) {
         var isMove = false;
@@ -1373,6 +1922,8 @@ function onSquareClick(row, col) {
         }
     }
     if (piece && pieceColor(piece) === currentTurn) {
+        // AI 모드에서는 플레이어 색상의 기물만 선택 가능
+        if (gameSetting.mode === 'ai' && pieceColor(piece) !== gameSetting.playerColor) return;
         selectedSquare = [row, col]; possibleMoves = legalMoves(row, col);
     } else { selectedSquare = null; possibleMoves = []; }
     renderBoard();
@@ -1413,7 +1964,8 @@ function updateUI() {
         var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
         var icon = currentTurn === 'white' ? '⚪' : '⚫';
         var checkText = isInCheck(board, currentTurn) ? ' ⚠️ 체크!' : '';
-        statusEl.textContent = icon + ' ' + name + '의 차례' + checkText;
+        var aiText = (gameSetting.mode === 'ai' && currentTurn === gameSetting.aiColor) ? ' 🤖' : '';
+        statusEl.textContent = icon + ' ' + name + '의 차례' + checkText + aiText;
         statusEl.style.color = isInCheck(board, currentTurn) ? '#ff6b6b' : '';
     }
     document.getElementById('white-turn').className = 'turn-indicator' + (currentTurn === 'white' ? ' active' : '');
@@ -1481,14 +2033,44 @@ function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerI
 
 function undoMove() {
     if (boardHistory.length === 0) return;
-    var prevState = boardHistory.pop();
-    restoreState(prevState);
-    if (moveHistory.length > 0) {
-        var lastMove = moveHistory.pop();
-        var moveList = document.getElementById('move-list');
-        if (lastMove.color === 'white') { if (moveList.lastChild) moveList.removeChild(moveList.lastChild); }
-        else { var entries = moveList.querySelectorAll('.move-entry'); var last = entries[entries.length - 1]; if (last) last.querySelector('.move-black').textContent = ''; }
+    
+    // AI 모드에서는 AI가 생각 중이면 되돌리기 불가
+    if (aiThinking) {
+        sendToStockfish('stop');
+        aiThinking = false;
+        showAIStatus(false);
     }
+    
+    // AI 모드에서는 2수 되돌리기 (플레이어 수 + AI 수)
+    if (gameSetting.mode === 'ai' && boardHistory.length >= 2 && currentTurn === gameSetting.playerColor) {
+        // AI의 마지막 수 되돌리기
+        var prevState = boardHistory.pop();
+        if (moveHistory.length > 0) {
+            var lastMove = moveHistory.pop();
+            var moveList = document.getElementById('move-list');
+            if (lastMove.color === 'white') { if (moveList.lastChild) moveList.removeChild(moveList.lastChild); }
+            else { var entries = moveList.querySelectorAll('.move-entry'); var last = entries[entries.length - 1]; if (last) last.querySelector('.move-black').textContent = ''; }
+        }
+        // 플레이어의 마지막 수 되돌리기
+        prevState = boardHistory.pop();
+        restoreState(prevState);
+        if (moveHistory.length > 0) {
+            var lastMove2 = moveHistory.pop();
+            var moveList2 = document.getElementById('move-list');
+            if (lastMove2.color === 'white') { if (moveList2.lastChild) moveList2.removeChild(moveList2.lastChild); }
+            else { var entries2 = moveList2.querySelectorAll('.move-entry'); var last2 = entries2[entries2.length - 1]; if (last2) last2.querySelector('.move-black').textContent = ''; }
+        }
+    } else {
+        var prevState = boardHistory.pop();
+        restoreState(prevState);
+        if (moveHistory.length > 0) {
+            var lastMove = moveHistory.pop();
+            var moveList = document.getElementById('move-list');
+            if (lastMove.color === 'white') { if (moveList.lastChild) moveList.removeChild(moveList.lastChild); }
+            else { var entries = moveList.querySelectorAll('.move-entry'); var last = entries[entries.length - 1]; if (last) last.querySelector('.move-black').textContent = ''; }
+        }
+    }
+    
     selectedSquare = null; possibleMoves = []; gameOver = false;
     document.getElementById('gameover-modal').classList.remove('active');
     if (!gameSetting.unlimited && firstMoveMade) startTimer();
@@ -1500,11 +2082,12 @@ function flipBoard() { isFlipped = !isFlipped; renderBoard(); }
 function initGame() {
     board = INITIAL_BOARD.map(function(row) { return row.slice(); });
     currentTurn = 'white'; selectedSquare = null; possibleMoves = [];
-    moveHistory = []; boardHistory = [];
+    moveHistory = []; boardHistory = []; moveHistoryUCI = [];
     castlingRights = { K: true, Q: true, k: true, q: true };
     enPassantTarget = null; halfMoveClock = 0; fullMoveNumber = 1;
     gameOver = false; capturedByWhite = []; capturedByBlack = [];
     lastMoveFrom = null; lastMoveTo = null; firstMoveMade = false;
+    aiThinking = false;
 
     if (gameSetting.unlimited) { whiteTime = 0; blackTime = 0; }
     else { whiteTime = gameSetting.minutes * 60; blackTime = gameSetting.minutes * 60; }
@@ -1521,12 +2104,30 @@ function initGame() {
     document.getElementById('move-list').innerHTML = '';
     document.getElementById('gameover-modal').classList.remove('active');
     document.getElementById('promotion-modal').classList.remove('active');
-    stopTimer(); renderBoard(); updateUI();
+    showAIStatus(false);
+    stopTimer();
+    
+    // AI 모드에서 플레이어가 흑이면 보드 뒤집기
+    if (gameSetting.mode === 'ai' && gameSetting.playerColor === 'black') {
+        isFlipped = true;
+    } else {
+        isFlipped = false;
+    }
+    
+    renderBoard(); updateUI();
+    
+    // AI가 백(선공)이면 AI 먼저 수를 둠
+    if (gameSetting.mode === 'ai' && gameSetting.aiColor === 'white') {
+        setTimeout(function() { requestAIMove(); }, 800);
+    }
 }
 
 function restartGame() { document.getElementById('gameover-modal').classList.remove('active'); initGame(); }
 
-window.addEventListener('DOMContentLoaded', function() { updateTimeSummary(); });
+window.addEventListener('DOMContentLoaded', function() { 
+    updateTimeSummary(); 
+    updateAILevel();
+});
 </script>
 </body>
 </html>
