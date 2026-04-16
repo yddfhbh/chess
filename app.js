@@ -92,22 +92,34 @@ var FIREBASE_CONFIG = {
 var firebaseApp = null;
 var firebaseAuth = null;
 var firebaseDb = null;
+var ONLINE_CLIENT_ID_STORAGE_KEY = 'chess-online-client-id';
 
 function generateOnlineClientId() {
     return 'client-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
 function getOnlineClientId() {
-    var storageKey = 'chess-online-client-id';
     try {
-        var existing = window.sessionStorage ? sessionStorage.getItem(storageKey) : '';
+        var existing = window.sessionStorage ? sessionStorage.getItem(ONLINE_CLIENT_ID_STORAGE_KEY) : '';
         if (existing) return existing;
         var created = generateOnlineClientId();
-        if (window.sessionStorage) sessionStorage.setItem(storageKey, created);
+        if (window.sessionStorage) sessionStorage.setItem(ONLINE_CLIENT_ID_STORAGE_KEY, created);
         return created;
     } catch (err) {
         return generateOnlineClientId();
     }
+}
+
+function setOnlineClientId(clientId) {
+    onlineState.clientId = clientId;
+    try {
+        if (window.sessionStorage) sessionStorage.setItem(ONLINE_CLIENT_ID_STORAGE_KEY, clientId);
+    } catch (err) {}
+    return clientId;
+}
+
+function refreshOnlineClientId() {
+    return setOnlineClientId(generateOnlineClientId());
 }
 
 var onlineState = {
@@ -356,6 +368,13 @@ function setLobbyOnlineMessage(text) {
 function setLobbyOnlinePill(id, text) {
     var el = document.getElementById(id);
     if (el) el.textContent = text;
+}
+
+function syncDisplayedPlayerNames() {
+    var whiteNameEl = document.getElementById('display-white-name');
+    var blackNameEl = document.getElementById('display-black-name');
+    if (whiteNameEl) whiteNameEl.textContent = gameSetting.whiteName || '백';
+    if (blackNameEl) blackNameEl.textContent = gameSetting.blackName || '흑';
 }
 
 function isOwnedInviteRoomWaiting() {
@@ -796,6 +815,7 @@ function enterOnlineGameFromRoom(room) {
     gameSetting.unlimited = !!(room.settings && room.settings.unlimited);
     gameSetting.whiteName = room.whiteName || '백';
     gameSetting.blackName = room.blackName || '흑';
+    syncDisplayedPlayerNames();
     document.getElementById('lobby-screen').classList.remove('active');
     document.getElementById('game-screen').classList.add('active');
     isFlipped = onlineState.playerColor === 'black';
@@ -902,6 +922,9 @@ function subscribeToRoom(roomId) {
         }
         onlineState.roomData = room;
         onlineState.playerColor = room.whiteUid === onlineState.clientId ? 'white' : (room.blackUid === onlineState.clientId ? 'black' : null);
+        gameSetting.whiteName = room.whiteName || '백';
+        gameSetting.blackName = room.blackName || '흑';
+        syncDisplayedPlayerNames();
         updateOnlinePresence(room);
         updateOnlineUI();
         if (room.status === 'waiting') {
@@ -984,19 +1007,32 @@ function joinRoomByCode() {
         var roomId = normalizeRoomCode(input && input.value);
         if (!roomId) throw new Error('방 코드를 입력해주세요.');
         var nickname = requireOnlineNickname();
-        return firebaseDb.ref('rooms/' + roomId).transaction(function(room) {
-            if (!room) return;
-            if (room.status !== 'waiting') return;
-            if (room.hostUid === onlineState.clientId) return room;
-            if (room.guestUid) return;
-            room.guestUid = onlineState.clientId;
-            room.guestName = nickname;
-            room.blackUid = onlineState.clientId;
-            room.blackName = nickname;
-            room.whiteConnected = room.whiteConnected !== false;
-            room.blackConnected = true;
-            room.status = 'playing';
-            return room;
+        var roomRef = firebaseDb.ref('rooms/' + roomId);
+        return roomRef.once('value').then(function(snapshot) {
+            var room = snapshot.val();
+            if (!room) throw new Error('존재하지 않는 방 코드입니다.');
+            if (room.status !== 'waiting') throw new Error('이미 시작되었거나 사용할 수 없는 방입니다.');
+            if (room.guestUid) throw new Error('이미 다른 참가자가 입장한 방입니다.');
+
+            // 같은 브라우저에서 탭 복제 등으로 세션 ID가 겹치면 참가자용 ID를 새로 만든다.
+            if (room.hostUid === onlineState.clientId) {
+                refreshOnlineClientId();
+            }
+
+            return roomRef.transaction(function(current) {
+                if (!current) return;
+                if (current.status !== 'waiting') return;
+                if (current.hostUid === onlineState.clientId) return;
+                if (current.guestUid) return;
+                current.guestUid = onlineState.clientId;
+                current.guestName = nickname;
+                current.blackUid = onlineState.clientId;
+                current.blackName = nickname;
+                current.whiteConnected = current.whiteConnected !== false;
+                current.blackConnected = true;
+                current.status = 'playing';
+                return current;
+            });
         }).then(function(result) {
             if (!result.committed) throw new Error('참가할 수 없는 방입니다.');
             onlineState.showJoinRoomInput = false;
@@ -2721,8 +2757,7 @@ function initGame() {
     if (gameSetting.unlimited) { whiteTime = 0; blackTime = 0; }
     else { whiteTime = gameSetting.minutes * 60; blackTime = gameSetting.minutes * 60; }
 
-    document.getElementById('display-white-name').textContent = gameSetting.whiteName;
-    document.getElementById('display-black-name').textContent = gameSetting.blackName;
+    syncDisplayedPlayerNames();
 
     var wInc = document.getElementById('white-increment-badge'), bInc = document.getElementById('black-increment-badge');
     if (gameSetting.increment > 0) {
