@@ -482,6 +482,8 @@ function startGame() {
 function backToLobby() {
     stopTimer(); gameOver = true;
     cleanupDragState();
+    turnStartedAt = null;
+    finalGameResult = '*';
     aiThinking = false;
     showAIThinking(false);
     // ★ 엔진 종료
@@ -699,6 +701,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     boardHistory.push(cloneState());
     var piece = board[fromRow][fromCol];
     var color = pieceColor(piece);
+    var moveDurationMs = turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0;
     var captured = board[toRow][toCol];
     var moveNotation = '';
     var isCapture = false;
@@ -755,23 +758,28 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
         if (color === 'white') whiteTime += gameSetting.increment; else blackTime += gameSetting.increment;
     }
     if (!firstMoveMade) firstMoveMade = true;
+    var clockAfterMove = gameSetting.unlimited ? null : (color === 'white' ? whiteTime : blackTime);
     if (currentTurn === 'black') fullMoveNumber++;
     currentTurn = opponentColor(currentTurn);
 
     var inCheck = isInCheck(board, currentTurn);
     var hasLegal = hasAnyLegalMoves(currentTurn);
     if (inCheck) moveNotation += hasLegal ? '+' : '#';
-    addMoveToHistory(moveNotation, color);
+    addMoveToHistory(moveNotation, color, moveDurationMs, clockAfterMove);
 
     if (!hasLegal) {
         gameOver = true; stopTimer();
+        finalGameResult = inCheck ? (color === 'white' ? '1-0' : '0-1') : '1/2-1/2';
         if (inCheck) { showGameOver('체크메이트! 🏆', (color === 'white' ? gameSetting.whiteName : gameSetting.blackName) + '의 승리입니다!'); }
         else { showGameOver('스테일메이트!', '무승부입니다.'); }
     } else if (isInsufficientMaterial()) {
+        finalGameResult = '1/2-1/2';
         gameOver = true; stopTimer(); showGameOver('기물 부족!', '무승부입니다.');
     } else if (halfMoveClock >= 100) {
+        finalGameResult = '1/2-1/2';
         gameOver = true; stopTimer(); showGameOver('50수 규칙!', '무승부입니다.');
     }
+    turnStartedAt = gameOver ? null : Date.now();
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
     renderBoard(); updateUI();
     
@@ -783,18 +791,40 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     }
 }
 
-function addMoveToHistory(notation, color) {
-    moveHistory.push({ notation: notation, color: color });
+function formatDurationForDisplay(durationMs) {
+    var seconds = Math.max(0, durationMs || 0) / 1000;
+    if (seconds < 10) return seconds.toFixed(1) + 's';
+    if (seconds < 60) return Math.round(seconds) + 's';
+    var totalSeconds = Math.round(seconds);
+    var minutes = Math.floor(totalSeconds / 60);
+    var remain = totalSeconds % 60;
+    return minutes + ':' + (remain < 10 ? '0' : '') + remain;
+}
+
+function formatDurationForPGN(durationMs) {
+    var totalSeconds = Math.max(0, Math.round((durationMs || 0) / 1000));
+    var hours = Math.floor(totalSeconds / 3600);
+    var minutes = Math.floor((totalSeconds % 3600) / 60);
+    var seconds = totalSeconds % 60;
+    return hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+}
+
+function createMoveCellHtml(notation, durationMs) {
+    return '<span class="move-notation">' + notation + '</span><span class="move-time">' + formatDurationForDisplay(durationMs) + '</span>';
+}
+
+function addMoveToHistory(notation, color, durationMs, clockAfterMove) {
+    moveHistory.push({ notation: notation, color: color, durationMs: durationMs || 0, clockAfterMove: clockAfterMove });
     var moveList = document.getElementById('move-list');
     if (color === 'white') {
         var entry = document.createElement('div');
         entry.className = 'move-entry';
-        entry.innerHTML = '<span class="move-number">' + fullMoveNumber + '.</span><span class="move-white">' + notation + '</span><span class="move-black"></span>';
+        entry.innerHTML = '<span class="move-number">' + fullMoveNumber + '.</span><span class="move-white">' + createMoveCellHtml(notation, durationMs) + '</span><span class="move-black"></span>';
         moveList.appendChild(entry);
     } else {
         var entries = moveList.querySelectorAll('.move-entry');
         var last = entries[entries.length - 1];
-        if (last) last.querySelector('.move-black').textContent = notation;
+        if (last) last.querySelector('.move-black').innerHTML = createMoveCellHtml(notation, durationMs);
     }
     moveList.scrollTop = moveList.scrollHeight;
 }
@@ -971,6 +1001,88 @@ function formatTime(totalSeconds) {
     return m + ':' + (s < 10 ? '0' : '') + s;
 }
 
+function escapePGNTagValue(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function formatPGNDate(date) {
+    var safeDate = date || new Date();
+    var year = safeDate.getFullYear();
+    var month = String(safeDate.getMonth() + 1).padStart(2, '0');
+    var day = String(safeDate.getDate()).padStart(2, '0');
+    return year + '.' + month + '.' + day;
+}
+
+function formatTimeControlTag() {
+    if (gameSetting.unlimited) return '-';
+    return String(gameSetting.minutes * 60) + '+' + String(gameSetting.increment);
+}
+
+function buildPGN() {
+    var startedAt = gameStartedAt || new Date();
+    var result = finalGameResult || '*';
+    var tags = [
+        ['Event', 'Local Game'],
+        ['Site', 'Local'],
+        ['Date', formatPGNDate(startedAt)],
+        ['Round', '-'],
+        ['White', gameSetting.whiteName || 'White'],
+        ['Black', gameSetting.blackName || 'Black'],
+        ['Result', result],
+        ['TimeControl', formatTimeControlTag()]
+    ];
+
+    var lines = tags.map(function(tag) {
+        return '[' + tag[0] + ' "' + escapePGNTagValue(tag[1]) + '"]';
+    });
+
+    var moves = [];
+    for (var i = 0; i < moveHistory.length; i++) {
+        var move = moveHistory[i];
+        if (move.color === 'white') {
+            moves.push((Math.floor(i / 2) + 1) + '.');
+        }
+
+        var suffix = move.notation;
+        if (typeof move.durationMs === 'number') {
+            suffix += ' {[%emt ' + formatDurationForPGN(move.durationMs) + ']';
+            if (move.clockAfterMove !== null && move.clockAfterMove !== undefined) {
+                suffix += ' [%clk ' + formatTime(move.clockAfterMove) + ']';
+            }
+            suffix += '}';
+        }
+        moves.push(suffix);
+    }
+    moves.push(result);
+
+    lines.push('');
+    lines.push(moves.join(' '));
+    return lines.join('\n');
+}
+
+function downloadTextFile(filename, content) {
+    var blob = new Blob([content], { type: 'application/x-chess-pgn;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function savePGN() {
+    if (moveHistory.length === 0) {
+        alert('저장할 기보가 없습니다.');
+        return;
+    }
+
+    var startedAt = gameStartedAt || new Date();
+    var datePart = String(startedAt.getFullYear()) + String(startedAt.getMonth() + 1).padStart(2, '0') + String(startedAt.getDate()).padStart(2, '0');
+    downloadTextFile('chess-' + datePart + '.pgn', buildPGN());
+}
+
 function updateTimerDisplay() {
     var wEl = document.getElementById('white-timer'), bEl = document.getElementById('black-timer');
     if (gameSetting.unlimited) {
@@ -992,10 +1104,10 @@ function startTimer() {
         if (gameOver) { stopTimer(); return; }
         if (currentTurn === 'white') {
             whiteTime--;
-            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
+            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; finalGameResult = '0-1'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
         } else {
             blackTime--;
-            if (blackTime <= 0) { blackTime = 0; gameOver = true; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
+            if (blackTime <= 0) { blackTime = 0; gameOver = true; finalGameResult = '1-0'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
         }
         updateTimerDisplay();
     }, 1000);
@@ -1007,6 +1119,7 @@ function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerI
 function undoMove() {
     if (boardHistory.length === 0) return;
     cleanupDragState();
+    finalGameResult = '*';
     // ★ AI가 생각 중이면 중단
     if (aiThinking && stockfishWorker) {
         stockfishWorker.postMessage('stop');
@@ -1030,6 +1143,7 @@ function undoMove() {
     }
     
     selectedSquare = null; possibleMoves = []; gameOver = false;
+    turnStartedAt = Date.now();
     document.getElementById('gameover-modal').classList.remove('active');
     if (!gameSetting.unlimited && firstMoveMade) startTimer();
     renderBoard(); updateUI();
@@ -1039,6 +1153,9 @@ function flipBoard() { isFlipped = !isFlipped; renderBoard(); }
 
 function initGame() {
     cleanupDragState();
+    gameStartedAt = new Date();
+    turnStartedAt = Date.now();
+    finalGameResult = '*';
     board = INITIAL_BOARD.map(function(row) { return row.slice(); });
     currentTurn = 'white'; selectedSquare = null; possibleMoves = [];
     moveHistory = []; boardHistory = [];
@@ -1094,6 +1211,7 @@ function initGame() {
 function restartGame() {
     document.getElementById('gameover-modal').classList.remove('active');
     cleanupDragState();
+    finalGameResult = '*';
     if (gameSetting.mode === 'ai' && stockfishWorker) {
         stockfishWorker.postMessage('stop');
         stockfishWorker.postMessage('ucinewgame');
