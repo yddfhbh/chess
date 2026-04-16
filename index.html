@@ -7,70 +7,221 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <!-- 사이드바 -->
-        <aside class="sidebar">
-            <h1>♟️ 체스 게임</h1>
-            <div class="game-info">
-                <div class="player-card black-player">
-                    <div class="player-icon">♚</div>
-                    <div class="player-details">
-                        <span class="player-name">흑 (Black)</span>
-                        <div class="timer" id="black-timer">10:00</div>
+
+    <!-- ============ 시작 화면 (로비) ============ -->
+    <div id="lobby-screen" class="screen active">
+        <div class="lobby-container">
+            <div class="lobby-header">
+                <div class="logo-icon">♟️</div>
+                <h1>체스 게임</h1>
+                <p class="lobby-subtitle">Chess Game</p>
+            </div>
+
+            <!-- 게임 모드 선택 -->
+            <div class="lobby-section">
+                <h2>🎮 게임 모드</h2>
+                <div class="mode-selector">
+                    <button class="mode-btn active" data-mode="pvp" onclick="selectMode('pvp')">
+                        <span class="mode-icon">🧑‍🤝‍🧑</span>
+                        <span class="mode-title">로컬 PvP</span>
+                        <span class="mode-desc">한 화면에서 두 명이 플레이</span>
+                    </button>
+                    <button class="mode-btn disabled" data-mode="ai">
+                        <span class="mode-icon">🤖</span>
+                        <span class="mode-title">vs AI</span>
+                        <span class="mode-desc">준비 중...</span>
+                        <span class="coming-soon-badge">Coming Soon</span>
+                    </button>
+                    <button class="mode-btn disabled" data-mode="online">
+                        <span class="mode-icon">🌐</span>
+                        <span class="mode-title">온라인 PvP</span>
+                        <span class="mode-desc">준비 중...</span>
+                        <span class="coming-soon-badge">Coming Soon</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 시간 설정 -->
+            <div class="lobby-section">
+                <h2>⏰ 시간 설정</h2>
+
+                <!-- 프리셋 버튼 -->
+                <div class="time-presets">
+                    <button class="preset-btn" onclick="applyPreset(1, 0)">
+                        <span class="preset-time">1분</span>
+                        <span class="preset-label">Bullet</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(1, 1)">
+                        <span class="preset-time">1+1</span>
+                        <span class="preset-label">Bullet</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(2, 1)">
+                        <span class="preset-time">2+1</span>
+                        <span class="preset-label">Bullet</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(3, 0)">
+                        <span class="preset-time">3분</span>
+                        <span class="preset-label">Blitz</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(3, 2)">
+                        <span class="preset-time">3+2</span>
+                        <span class="preset-label">Blitz</span>
+                    </button>
+                    <button class="preset-btn active" onclick="applyPreset(5, 0)">
+                        <span class="preset-time">5분</span>
+                        <span class="preset-label">Blitz</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(5, 3)">
+                        <span class="preset-time">5+3</span>
+                        <span class="preset-label">Blitz</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(10, 0)">
+                        <span class="preset-time">10분</span>
+                        <span class="preset-label">Rapid</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(10, 5)">
+                        <span class="preset-time">10+5</span>
+                        <span class="preset-label">Rapid</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(15, 10)">
+                        <span class="preset-time">15+10</span>
+                        <span class="preset-label">Rapid</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(30, 0)">
+                        <span class="preset-time">30분</span>
+                        <span class="preset-label">Classical</span>
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset(0, 0)">
+                        <span class="preset-time">∞</span>
+                        <span class="preset-label">무제한</span>
+                    </button>
+                </div>
+
+                <!-- 커스텀 시간 설정 -->
+                <div class="custom-time">
+                    <h3>⚙️ 직접 설정</h3>
+                    <div class="custom-time-row">
+                        <div class="time-input-group">
+                            <label for="custom-minutes">기본 시간</label>
+                            <div class="input-with-unit">
+                                <button class="spin-btn" onclick="adjustTime('minutes', -1)">−</button>
+                                <input type="number" id="custom-minutes" value="5" min="0" max="180" onchange="updateCustomPreset()">
+                                <button class="spin-btn" onclick="adjustTime('minutes', 1)">+</button>
+                                <span class="unit">분</span>
+                            </div>
+                        </div>
+                        <div class="time-input-group">
+                            <label for="custom-increment">추가 시간</label>
+                            <div class="input-with-unit">
+                                <button class="spin-btn" onclick="adjustTime('increment', -1)">−</button>
+                                <input type="number" id="custom-increment" value="0" min="0" max="60" onchange="updateCustomPreset()">
+                                <button class="spin-btn" onclick="adjustTime('increment', 1)">+</button>
+                                <span class="unit">초</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="turn-indicator" id="black-turn"></div>
-                </div>
-
-                <div class="vs-badge">VS</div>
-
-                <div class="player-card white-player">
-                    <div class="player-icon">♔</div>
-                    <div class="player-details">
-                        <span class="player-name">백 (White)</span>
-                        <div class="timer" id="white-timer">10:00</div>
+                    <div class="time-summary">
+                        <span id="time-summary-text">⏱️ 각 플레이어: 5분 | 추가 시간: 없음</span>
                     </div>
-                    <div class="turn-indicator active" id="white-turn"></div>
                 </div>
             </div>
 
-            <div class="status-box">
-                <div id="status">⚪ 백의 차례입니다</div>
-            </div>
-
-            <div class="captured-pieces">
-                <h3>잡힌 기물</h3>
-                <div class="captured-group">
-                    <span class="captured-label">백이 잡은:</span>
-                    <div id="white-captured" class="captured-list"></div>
+            <!-- 플레이어 이름 (선택) -->
+            <div class="lobby-section">
+                <h2>👤 플레이어</h2>
+                <div class="player-names">
+                    <div class="name-input-group">
+                        <span class="name-icon">♔</span>
+                        <input type="text" id="white-name" placeholder="백 플레이어" maxlength="15">
+                    </div>
+                    <div class="name-input-group">
+                        <span class="name-icon">♚</span>
+                        <input type="text" id="black-name" placeholder="흑 플레이어" maxlength="15">
+                    </div>
                 </div>
-                <div class="captured-group">
-                    <span class="captured-label">흑이 잡은:</span>
-                    <div id="black-captured" class="captured-list"></div>
+            </div>
+
+            <!-- 시작 버튼 -->
+            <button class="start-btn" onclick="startGame()">
+                <span class="start-icon">⚔️</span>
+                <span>게임 시작!</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ============ 게임 화면 ============ -->
+    <div id="game-screen" class="screen">
+        <div class="container">
+            <!-- 사이드바 -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h1>♟️ 체스 게임</h1>
                 </div>
-            </div>
 
-            <div class="move-history">
-                <h3>📜 기보</h3>
-                <div id="move-list" class="move-list"></div>
-            </div>
+                <div class="game-info">
+                    <div class="player-card black-player" id="black-player-card">
+                        <div class="player-icon">♚</div>
+                        <div class="player-details">
+                            <span class="player-name" id="display-black-name">흑 (Black)</span>
+                            <div class="timer" id="black-timer">10:00</div>
+                        </div>
+                        <div class="increment-badge" id="black-increment-badge" style="display:none;">+0s</div>
+                        <div class="turn-indicator" id="black-turn"></div>
+                    </div>
 
-            <div class="controls">
-                <button id="new-game-btn" onclick="newGame()">🔄 새 게임</button>
-                <button id="undo-btn" onclick="undoMove()">↩️ 되돌리기</button>
-                <button id="flip-btn" onclick="flipBoard()">🔃 보드 뒤집기</button>
-            </div>
-        </aside>
+                    <div class="vs-badge">VS</div>
 
-        <!-- 체스 보드 -->
-        <main class="board-area">
-            <div class="rank-labels top" id="rank-labels-top"></div>
-            <div class="board-wrapper">
-                <div class="file-labels left" id="file-labels-left"></div>
-                <div id="chessboard" class="chessboard"></div>
-                <div class="file-labels right" id="file-labels-right"></div>
-            </div>
-            <div class="rank-labels bottom" id="rank-labels-bottom"></div>
-        </main>
+                    <div class="player-card white-player" id="white-player-card">
+                        <div class="player-icon">♔</div>
+                        <div class="player-details">
+                            <span class="player-name" id="display-white-name">백 (White)</span>
+                            <div class="timer" id="white-timer">10:00</div>
+                        </div>
+                        <div class="increment-badge" id="white-increment-badge" style="display:none;">+0s</div>
+                        <div class="turn-indicator active" id="white-turn"></div>
+                    </div>
+                </div>
+
+                <div class="status-box">
+                    <div id="status">⚪ 백의 차례입니다</div>
+                </div>
+
+                <div class="captured-pieces">
+                    <h3>잡힌 기물</h3>
+                    <div class="captured-group">
+                        <span class="captured-label">백이 잡은:</span>
+                        <div id="white-captured" class="captured-list"></div>
+                    </div>
+                    <div class="captured-group">
+                        <span class="captured-label">흑이 잡은:</span>
+                        <div id="black-captured" class="captured-list"></div>
+                    </div>
+                </div>
+
+                <div class="move-history">
+                    <h3>📜 기보</h3>
+                    <div id="move-list" class="move-list"></div>
+                </div>
+
+                <div class="controls">
+                    <button id="new-game-btn" onclick="backToLobby()">🏠 로비로</button>
+                    <button id="restart-btn" onclick="restartGame()">🔄 재시작</button>
+                    <button id="undo-btn" onclick="undoMove()">↩️ 되돌리기</button>
+                    <button id="flip-btn" onclick="flipBoard()">🔃 보드 뒤집기</button>
+                </div>
+            </aside>
+
+            <!-- 체스 보드 -->
+            <main class="board-area">
+                <div class="rank-labels top" id="rank-labels-top"></div>
+                <div class="board-wrapper">
+                    <div class="file-labels left" id="file-labels-left"></div>
+                    <div id="chessboard" class="chessboard"></div>
+                    <div class="file-labels right" id="file-labels-right"></div>
+                </div>
+                <div class="rank-labels bottom" id="rank-labels-bottom"></div>
+            </main>
+        </div>
     </div>
 
     <!-- 프로모션 모달 -->
@@ -86,7 +237,10 @@
         <div class="modal-content gameover">
             <h2 id="gameover-title">게임 종료!</h2>
             <p id="gameover-message"></p>
-            <button onclick="newGame()">🔄 새 게임 시작</button>
+            <div class="gameover-buttons">
+                <button onclick="restartGame()">🔄 재시작</button>
+                <button onclick="backToLobby()" class="secondary-btn">🏠 로비로</button>
+            </div>
         </div>
     </div>
 
