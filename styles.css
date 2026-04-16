@@ -805,8 +805,33 @@ body {
 .player-avatar.white-avatar { background: #fff; color: #333; }
 .player-avatar.black-avatar { background: #333; color: #fff; }
 
-.player-info { flex: 1; }
-.player-name { font-weight: 600; font-size: 0.95em; }
+.player-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.player-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.player-side-label {
+    font-size: 0.78em;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+}
+
+.player-name {
+    font-weight: 600;
+    font-size: 0.98em;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 .player-timer {
     display: inline-block;
@@ -833,7 +858,6 @@ body {
     height: 8px;
     border-radius: 50%;
     background: rgba(255,255,255,0.15);
-    margin-left: 8px;
     display: inline-block;
 }
 

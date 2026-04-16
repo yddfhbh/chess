@@ -351,7 +351,15 @@ function updateOnlineUI() {
 
     var roomBox = document.getElementById('online-room-box');
     var roomCode = document.getElementById('online-room-code');
+    var joinRow = document.getElementById('online-join-row');
     var copyBtn = document.getElementById('copy-room-btn');
+    var showInviteCodeInput = !!(
+        onlineState.roomId &&
+        onlineState.roomData &&
+        onlineState.roomData.type === 'invite' &&
+        onlineState.roomData.hostUid === onlineState.authUid
+    );
+    if (joinRow) joinRow.style.display = showInviteCodeInput ? 'grid' : 'none';
     if (roomBox) roomBox.style.display = onlineState.roomId ? 'block' : 'none';
     if (roomCode) roomCode.textContent = onlineState.roomId || '------';
     if (copyBtn) copyBtn.style.display = onlineState.roomId ? 'inline-block' : 'none';
