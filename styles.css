@@ -567,6 +567,7 @@ body {
 .piece-svg svg { width: 100%; height: 100%; }
 
 .piece-svg.draggable-piece {
+    pointer-events: auto;
     cursor: grab;
 }
 
