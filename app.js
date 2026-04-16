@@ -92,10 +92,29 @@ var FIREBASE_CONFIG = {
 var firebaseApp = null;
 var firebaseAuth = null;
 var firebaseDb = null;
+
+function generateOnlineClientId() {
+    return 'client-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function getOnlineClientId() {
+    var storageKey = 'chess-online-client-id';
+    try {
+        var existing = window.sessionStorage ? sessionStorage.getItem(storageKey) : '';
+        if (existing) return existing;
+        var created = generateOnlineClientId();
+        if (window.sessionStorage) sessionStorage.setItem(storageKey, created);
+        return created;
+    } catch (err) {
+        return generateOnlineClientId();
+    }
+}
+
 var onlineState = {
     enabled: false,
     authReady: false,
     authUid: null,
+    clientId: getOnlineClientId(),
     roomId: null,
     roomRef: null,
     roomListener: null,
@@ -345,7 +364,7 @@ function isOwnedInviteRoomWaiting() {
         onlineState.roomData &&
         onlineState.roomData.type === 'invite' &&
         onlineState.roomData.status === 'waiting' &&
-        onlineState.roomData.hostUid === onlineState.authUid
+        onlineState.roomData.hostUid === onlineState.clientId
     );
 }
 
@@ -770,7 +789,7 @@ function enterOnlineGameFromRoom(room) {
     onlineState.enabled = true;
     onlineState.roomStarted = true;
     onlineState.gameRevision = room.gameRevision || 0;
-    onlineState.playerColor = room.whiteUid === onlineState.authUid ? 'white' : (room.blackUid === onlineState.authUid ? 'black' : null);
+    onlineState.playerColor = room.whiteUid === onlineState.clientId ? 'white' : (room.blackUid === onlineState.clientId ? 'black' : null);
     gameSetting.mode = 'online';
     gameSetting.minutes = room.settings && typeof room.settings.minutes === 'number' ? room.settings.minutes : 5;
     gameSetting.increment = room.settings && typeof room.settings.increment === 'number' ? room.settings.increment : 0;
@@ -788,7 +807,7 @@ function leaveOnlineRoom(reasonText) {
     clearOnlinePresence();
     if (!firebaseDb || !onlineState.roomId || !onlineState.roomData) return Promise.resolve();
     var room = onlineState.roomData;
-    if (room.status === 'waiting' && room.hostUid === onlineState.authUid) {
+    if (room.status === 'waiting' && room.hostUid === onlineState.clientId) {
         return firebaseDb.ref('rooms/' + onlineState.roomId).remove();
     }
     if (room.status === 'playing') {
@@ -882,11 +901,11 @@ function subscribeToRoom(roomId) {
             return;
         }
         onlineState.roomData = room;
-        onlineState.playerColor = room.whiteUid === onlineState.authUid ? 'white' : (room.blackUid === onlineState.authUid ? 'black' : null);
+        onlineState.playerColor = room.whiteUid === onlineState.clientId ? 'white' : (room.blackUid === onlineState.clientId ? 'black' : null);
         updateOnlinePresence(room);
         updateOnlineUI();
         if (room.status === 'waiting') {
-            setLobbyOnlineMessage(room.hostUid === onlineState.authUid ? '친구를 기다리는 중입니다.' : '방 참가 처리 중입니다.');
+            setLobbyOnlineMessage(room.hostUid === onlineState.clientId ? '친구를 기다리는 중입니다.' : '방 참가 처리 중입니다.');
             return;
         }
         if (room.status === 'playing' || room.status === 'finished') {
@@ -932,11 +951,11 @@ function createInviteRoom() {
         var roomData = {
             type: 'invite',
             status: 'waiting',
-            hostUid: onlineState.authUid,
+            hostUid: onlineState.clientId,
             hostName: nickname,
             guestUid: null,
             guestName: null,
-            whiteUid: onlineState.authUid,
+            whiteUid: onlineState.clientId,
             blackUid: null,
             whiteName: nickname,
             blackName: null,
@@ -968,11 +987,11 @@ function joinRoomByCode() {
         return firebaseDb.ref('rooms/' + roomId).transaction(function(room) {
             if (!room) return;
             if (room.status !== 'waiting') return;
-            if (room.hostUid === onlineState.authUid) return room;
+            if (room.hostUid === onlineState.clientId) return room;
             if (room.guestUid) return;
-            room.guestUid = onlineState.authUid;
+            room.guestUid = onlineState.clientId;
             room.guestName = nickname;
-            room.blackUid = onlineState.authUid;
+            room.blackUid = onlineState.clientId;
             room.blackName = nickname;
             room.whiteConnected = room.whiteConnected !== false;
             room.blackConnected = true;
@@ -1003,9 +1022,9 @@ function copyInviteCode() {
 }
 
 function waitForRandomAssignment() {
-    if (!firebaseDb || !onlineState.authUid) return;
+    if (!firebaseDb || !onlineState.clientId) return;
     if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);
-    onlineState.assignmentRef = firebaseDb.ref('matchAssignments/' + onlineState.authUid);
+    onlineState.assignmentRef = firebaseDb.ref('matchAssignments/' + onlineState.clientId);
     onlineState.assignmentListener = function(snapshot) {
         var roomId = snapshot.val();
         if (!roomId) return;
@@ -1026,10 +1045,10 @@ function createRandomRoomWithOpponent(opponent, nickname) {
         status: 'playing',
         hostUid: opponent.uid,
         hostName: opponent.name,
-        guestUid: onlineState.authUid,
+        guestUid: onlineState.clientId,
         guestName: nickname,
         whiteUid: opponent.uid,
-        blackUid: onlineState.authUid,
+        blackUid: onlineState.clientId,
         whiteName: opponent.name,
         blackName: nickname,
         whiteConnected: true,
@@ -1043,7 +1062,7 @@ function createRandomRoomWithOpponent(opponent, nickname) {
     var updates = {};
     updates['rooms/' + roomId] = roomData;
     updates['matchAssignments/' + opponent.uid] = roomId;
-    updates['matchAssignments/' + onlineState.authUid] = roomId;
+    updates['matchAssignments/' + onlineState.clientId] = roomId;
     updates['matchmaking/' + getMatchmakingKey()] = null;
     return firebaseDb.ref().update(updates).then(function() {
         setLobbyOnlineMessage('랜덤 매칭 상대를 찾았습니다.');
@@ -1064,13 +1083,13 @@ function startRandomMatch() {
         updateOnlineUI();
         var matchedOpponent = null;
         return queueRef.transaction(function(current) {
-            if (current && current.uid && current.uid !== onlineState.authUid) {
+            if (current && current.uid && current.uid !== onlineState.clientId) {
                 matchedOpponent = current;
                 return null;
             }
             if (!current) {
                 return {
-                    uid: onlineState.authUid,
+                    uid: onlineState.clientId,
                     name: nickname,
                     minutes: gameSetting.minutes,
                     increment: gameSetting.increment,
@@ -1095,7 +1114,7 @@ function cancelOnlineWaiting() {
     var tasks = [];
     if (onlineState.queueRef) tasks.push(onlineState.queueRef.remove());
     if (onlineState.assignmentRef) tasks.push(onlineState.assignmentRef.remove());
-    if (onlineState.roomData && onlineState.roomData.status === 'waiting' && onlineState.roomData.hostUid === onlineState.authUid && onlineState.roomId && firebaseDb) {
+    if (onlineState.roomData && onlineState.roomData.status === 'waiting' && onlineState.roomData.hostUid === onlineState.clientId && onlineState.roomId && firebaseDb) {
         tasks.push(firebaseDb.ref('rooms/' + onlineState.roomId).remove());
     }
     if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);

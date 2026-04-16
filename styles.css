@@ -845,12 +845,7 @@ body {
 .player-identity {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-}
-
-.player-name-label {
-    font-size: 0.72em;
-    color: var(--text-secondary);
+    gap: 0;
 }
 
 .player-name {
