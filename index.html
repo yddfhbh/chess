@@ -176,41 +176,81 @@ body {
 }
 
 .ai-level-select {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    background: rgba(0,0,0,0.16);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
 }
 
-.ai-level-btn {
-    padding: 10px 6px;
+.ai-level-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.ai-level-value {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+}
+
+.ai-level-caption,
+.ai-level-max {
+    font-size: 0.78em;
+    color: var(--text-secondary);
+}
+
+.ai-level-controls {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    gap: 10px;
+    align-items: center;
+}
+
+.ai-level-step {
+    width: 44px;
+    height: 44px;
     border: 2px solid rgba(255,255,255,0.1);
     border-radius: 8px;
-    background: transparent;
+    background: rgba(255,255,255,0.04);
     color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s;
     text-align: center;
-    font-size: 0.85em;
-}
-
-.ai-level-btn.active {
-    border-color: var(--gold);
-    background: rgba(240, 208, 96, 0.1);
-    color: var(--gold);
-}
-
-.ai-level-btn:hover {
-    border-color: var(--accent);
-}
-
-.ai-level-btn .level-num {
     font-size: 1.3em;
     font-weight: 700;
-    display: block;
 }
 
-.ai-level-btn .level-label {
-    font-size: 0.7em;
+.ai-level-step:hover {
+    border-color: var(--accent);
+    background: rgba(79, 195, 247, 0.08);
+}
+
+.ai-level-range {
+    width: 100%;
+    accent-color: var(--gold);
+    cursor: pointer;
+}
+
+.ai-level-range:focus {
+    outline: none;
+}
+
+.ai-level-select.active {
+    border-color: var(--gold);
+    background: rgba(240, 208, 96, 0.1);
+}
+
+.ai-level-scale {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75em;
     color: var(--text-secondary);
 }
 
@@ -840,7 +880,8 @@ body {
     .mode-grid { grid-template-columns: 1fr; }
     .time-presets { grid-template-columns: repeat(3, 1fr); }
     .player-inputs { grid-template-columns: 1fr; }
-    .ai-level-select { grid-template-columns: repeat(3, 1fr); }
+    .ai-level-controls { grid-template-columns: 40px 1fr 40px; }
+    .ai-level-step { width: 40px; height: 40px; }
     
     .side-panel { width: 100%; }
     
@@ -895,20 +936,21 @@ body {
                 </div>
                 <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">AI 난이도 (Skill Level)</label>
                 <div class="ai-level-select">
-                    <div class="ai-level-btn" data-level="1" onclick="selectAILevel(1)">
-                        <span class="level-num">1</span><span class="level-label">입문</span>
+                    <div class="ai-level-header">
+                        <div>
+                            <div class="ai-level-value" id="ai-level-value">Lv. 10</div>
+                            <div class="ai-level-caption" id="ai-level-caption">상급</div>
+                        </div>
+                        <div class="ai-level-max">1 ~ 20</div>
                     </div>
-                    <div class="ai-level-btn" data-level="3" onclick="selectAILevel(3)">
-                        <span class="level-num">3</span><span class="level-label">초급</span>
+                    <div class="ai-level-controls">
+                        <button type="button" class="ai-level-step" onclick="adjustAILevel(-1)" aria-label="AI 난이도 낮추기">-</button>
+                        <input id="ai-level-range" class="ai-level-range" type="range" min="1" max="20" step="1" value="10" oninput="selectAILevel(this.value)" />
+                        <button type="button" class="ai-level-step" onclick="adjustAILevel(1)" aria-label="AI 난이도 높이기">+</button>
                     </div>
-                    <div class="ai-level-btn" data-level="5" onclick="selectAILevel(5)">
-                        <span class="level-num">5</span><span class="level-label">중급</span>
-                    </div>
-                    <div class="ai-level-btn active" data-level="10" onclick="selectAILevel(10)">
-                        <span class="level-num">10</span><span class="level-label">상급</span>
-                    </div>
-                    <div class="ai-level-btn" data-level="20" onclick="selectAILevel(20)">
-                        <span class="level-num">20</span><span class="level-label">최강</span>
+                    <div class="ai-level-scale">
+                        <span>1</span>
+                        <span>20</span>
                     </div>
                 </div>
             </div>
@@ -1137,6 +1179,9 @@ var gameSetting = {
     playerColor: 'white'    // ★ 플레이어가 맡는 색상
 };
 
+var AI_LEVEL_MIN = 1;
+var AI_LEVEL_MAX = 20;
+
 var board = [];
 var currentTurn = 'white';
 var selectedSquare = null;
@@ -1359,9 +1404,37 @@ function selectAIColor(color) {
 
 // ★ AI 난이도 선택
 function selectAILevel(level) {
-    document.querySelectorAll('.ai-level-btn').forEach(function(btn) { btn.classList.remove('active'); });
-    document.querySelector('.ai-level-btn[data-level="' + level + '"]').classList.add('active');
+    var parsedLevel = parseInt(level, 10);
+    if (isNaN(parsedLevel)) parsedLevel = gameSetting.aiLevel;
+    gameSetting.aiLevel = Math.max(AI_LEVEL_MIN, Math.min(AI_LEVEL_MAX, parsedLevel));
+    updateAILevelUI();
+}
+
+function adjustAILevel(delta) {
+    selectAILevel(gameSetting.aiLevel + delta);
+}
+
+function getAILevelLabel(level) {
+    if (level <= 4) return '입문';
+    if (level <= 8) return '초급';
+    if (level <= 12) return '중급';
+    if (level <= 16) return '상급';
+    return '최상';
+}
+
+function updateAILevelUI() {
+    var level = Math.max(AI_LEVEL_MIN, Math.min(AI_LEVEL_MAX, gameSetting.aiLevel));
+    var rangeEl = document.getElementById('ai-level-range');
+    var valueEl = document.getElementById('ai-level-value');
+    var captionEl = document.getElementById('ai-level-caption');
+    var wrapperEl = document.querySelector('.ai-level-select');
+
     gameSetting.aiLevel = level;
+
+    if (rangeEl) rangeEl.value = level;
+    if (valueEl) valueEl.textContent = 'Lv. ' + level;
+    if (captionEl) captionEl.textContent = getAILevelLabel(level);
+    if (wrapperEl) wrapperEl.classList.toggle('active', level >= 15);
 }
 
 function applyPreset(minutes, increment, el) {
@@ -2042,7 +2115,10 @@ function restartGame() {
     initGame();
 }
 
-window.addEventListener('DOMContentLoaded', function() { updateTimeSummary(); });
+window.addEventListener('DOMContentLoaded', function() {
+    updateTimeSummary();
+    updateAILevelUI();
+});
 </script>
 </body>
 </html>
