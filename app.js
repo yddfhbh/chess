@@ -898,6 +898,31 @@ function deleteInviteRoom() {
     });
 }
 
+function clearOnlineTransientState() {
+    var tasks = [];
+    clearOnlinePresence();
+    if (onlineState.queueRef) tasks.push(onlineState.queueRef.remove());
+    if (onlineState.assignmentRef) tasks.push(onlineState.assignmentRef.remove());
+    if (onlineState.roomRef && onlineState.roomListener) onlineState.roomRef.off('value', onlineState.roomListener);
+    if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);
+    onlineState.roomRef = null;
+    onlineState.roomListener = null;
+    onlineState.assignmentRef = null;
+    onlineState.assignmentListener = null;
+    onlineState.roomId = null;
+    onlineState.roomData = null;
+    onlineState.playerColor = null;
+    onlineState.claimingDisconnectWin = false;
+    onlineState.roomStarted = false;
+    onlineState.inQueue = false;
+    onlineState.queueRef = null;
+    onlineState.gameRevision = -1;
+    onlineState.lastSyncedStateHash = null;
+    onlineState.enabled = false;
+    updateOnlineUI();
+    return Promise.all(tasks);
+}
+
 function toggleRandomMatch() {
     if (onlineState.inQueue) {
         cancelOnlineWaiting();
@@ -1000,15 +1025,59 @@ function createInviteRoom() {
     });
 }
 
+function attemptJoinInviteRoom(roomRef, roomId, nickname, allowRetry) {
+    return roomRef.once('value').then(function(snapshot) {
+        var current = snapshot.val();
+        if (!current) throw new Error('존재하지 않는 방 코드입니다.');
+        if (current.blackUid === onlineState.clientId || current.guestUid === onlineState.clientId) {
+            return current;
+        }
+        if (current.status !== 'waiting') throw new Error('이미 시작되었거나 사용할 수 없는 방입니다.');
+        if (current.guestUid) throw new Error('이미 다른 참가자가 입장한 방입니다.');
+
+        if (allowRetry && current.hostUid === onlineState.clientId) {
+            refreshOnlineClientId();
+            return attemptJoinInviteRoom(roomRef, roomId, nickname, false);
+        }
+
+        return roomRef.update({
+            guestUid: onlineState.clientId,
+            guestName: nickname,
+            blackUid: onlineState.clientId,
+            blackName: nickname,
+            whiteConnected: current.whiteConnected !== false,
+            blackConnected: true,
+            status: 'playing',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).then(function() {
+            return roomRef.once('value');
+        }).then(function(verifySnapshot) {
+            var verified = verifySnapshot.val();
+            if (!verified) throw new Error('존재하지 않는 방 코드입니다.');
+            if (verified.blackUid === onlineState.clientId || verified.guestUid === onlineState.clientId) {
+                return verified;
+            }
+            if (verified.guestUid && verified.guestUid !== onlineState.clientId) {
+                throw new Error('이미 다른 참가자가 입장한 방입니다.');
+            }
+            if (verified.status !== 'waiting' && verified.status !== 'playing') {
+                throw new Error('이미 시작되었거나 사용할 수 없는 방입니다.');
+            }
+            throw new Error('방 참가 처리에 실패했습니다. 다시 시도해주세요.');
+        });
+    });
+}
+
 function joinRoomByCode() {
     ensureFirebaseReady().then(function() {
-        cancelOnlineWaiting();
         var input = document.getElementById('room-code-input');
         var roomId = normalizeRoomCode(input && input.value);
         if (!roomId) throw new Error('방 코드를 입력해주세요.');
         var nickname = requireOnlineNickname();
         var roomRef = firebaseDb.ref('rooms/' + roomId);
-        return roomRef.once('value').then(function(snapshot) {
+        return clearOnlineTransientState().then(function() {
+            return roomRef.once('value');
+        }).then(function(snapshot) {
             var room = snapshot.val();
             if (!room) throw new Error('존재하지 않는 방 코드입니다.');
             if (room.status !== 'waiting') throw new Error('이미 시작되었거나 사용할 수 없는 방입니다.');
@@ -1019,22 +1088,8 @@ function joinRoomByCode() {
                 refreshOnlineClientId();
             }
 
-            return roomRef.transaction(function(current) {
-                if (!current) return;
-                if (current.status !== 'waiting') return;
-                if (current.hostUid === onlineState.clientId) return;
-                if (current.guestUid) return;
-                current.guestUid = onlineState.clientId;
-                current.guestName = nickname;
-                current.blackUid = onlineState.clientId;
-                current.blackName = nickname;
-                current.whiteConnected = current.whiteConnected !== false;
-                current.blackConnected = true;
-                current.status = 'playing';
-                return current;
-            });
-        }).then(function(result) {
-            if (!result.committed) throw new Error('참가할 수 없는 방입니다.');
+            return attemptJoinInviteRoom(roomRef, roomId, nickname, true);
+        }).then(function() {
             onlineState.showJoinRoomInput = false;
             subscribeToRoom(roomId);
             firebaseDb.ref('rooms/' + roomId + '/updatedAt').set(firebase.database.ServerValue.TIMESTAMP);
