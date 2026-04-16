@@ -274,7 +274,7 @@
         <h2 id="gameover-title">게임 종료</h2>
         <p id="gameover-message"></p>
         <div class="modal-buttons">
-            <button class="modal-btn secondary" onclick="openPGNModal()">PGN 보기</button>
+            <button class="modal-btn secondary" id="open-pgn-btn" onclick="openPGNModal()">PGN 보기</button>
             <button class="modal-btn primary" onclick="restartGame()">🔄 재시작</button>
             <button class="modal-btn secondary" onclick="backToLobby()">🏠 로비로</button>
         </div>
@@ -302,8 +302,8 @@
         <p>텍스트를 복사하거나 파일로 내려받을 수 있습니다.</p>
         <textarea id="pgn-text" class="pgn-textarea" readonly spellcheck="false"></textarea>
         <div class="modal-buttons">
-            <button class="modal-btn secondary" onclick="copyPGN()">복사</button>
-            <button class="modal-btn secondary" onclick="downloadPGN()">다운로드</button>
+            <button class="modal-btn secondary" id="copy-pgn-btn" onclick="copyPGN()">복사</button>
+            <button class="modal-btn secondary" id="download-pgn-btn" onclick="downloadPGN()">다운로드</button>
             <button class="modal-btn primary" onclick="closePGNModal()">닫기</button>
         </div>
     </div>

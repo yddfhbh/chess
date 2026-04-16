@@ -784,6 +784,7 @@ function applyOnlineGameState(serializedState) {
     showAIThinking(false);
     rebuildMoveListFromHistory();
     document.getElementById('gameover-modal').classList.remove('active');
+    updatePGNActionButtons();
     renderBoard();
     updateUI();
     if (gameOver) {
@@ -1769,6 +1770,7 @@ function backToLobby() {
     document.getElementById('gameover-modal').classList.remove('active');
     closeResignModal(true);
     closePGNModal();
+    updatePGNActionButtons();
     document.getElementById('promotion-modal').classList.remove('active');
     document.getElementById('game-screen').classList.remove('active');
     document.getElementById('lobby-screen').classList.add('active');
@@ -2342,6 +2344,7 @@ function showGameOver(title, message) {
     closeResignModal(true);
     document.getElementById('gameover-title').textContent = title;
     document.getElementById('gameover-message').textContent = message;
+    updatePGNActionButtons();
     document.getElementById('gameover-modal').classList.add('active');
 }
 
@@ -2627,6 +2630,20 @@ function getPGNFilename() {
     return 'chess-' + datePart + '.pgn';
 }
 
+function hasPGNData() {
+    return moveHistory.length > 0;
+}
+
+function updatePGNActionButtons() {
+    var canUsePGN = gameOver && hasPGNData();
+    var openBtn = document.getElementById('open-pgn-btn');
+    var copyBtn = document.getElementById('copy-pgn-btn');
+    var downloadBtn = document.getElementById('download-pgn-btn');
+    if (openBtn) openBtn.disabled = !canUsePGN;
+    if (copyBtn) copyBtn.disabled = !canUsePGN;
+    if (downloadBtn) downloadBtn.disabled = !canUsePGN;
+}
+
 function closePGNModal() {
     var modal = document.getElementById('pgn-modal');
     if (modal) modal.classList.remove('active');
@@ -2642,6 +2659,7 @@ function openPGNModal() {
     var textarea = document.getElementById('pgn-text');
     if (!textarea) return;
     textarea.value = buildPGN();
+    updatePGNActionButtons();
     document.getElementById('pgn-modal').classList.add('active');
     textarea.scrollTop = 0;
     textarea.focus();
@@ -2649,12 +2667,14 @@ function openPGNModal() {
 }
 
 function downloadPGN() {
+    if (!hasPGNData()) return;
     var textarea = document.getElementById('pgn-text');
     var pgnText = textarea && textarea.value ? textarea.value : buildPGN();
     downloadTextFile(getPGNFilename(), pgnText);
 }
 
 function copyPGN() {
+    if (!hasPGNData()) return;
     var textarea = document.getElementById('pgn-text');
     if (!textarea) return;
 
@@ -2785,6 +2805,7 @@ function undoMove() {
     document.getElementById('gameover-modal').classList.remove('active');
     closeResignModal(true);
     closePGNModal();
+    updatePGNActionButtons();
     if (!gameSetting.unlimited && firstMoveMade) startTimer();
     renderBoard(); updateUI();
 }
@@ -2824,6 +2845,7 @@ function initGame() {
     document.getElementById('gameover-modal').classList.remove('active');
     closeResignModal(true);
     closePGNModal();
+    updatePGNActionButtons();
     document.getElementById('promotion-modal').classList.remove('active');
     stopTimer();
     
@@ -2860,6 +2882,7 @@ function restartGame() {
     document.getElementById('gameover-modal').classList.remove('active');
     closeResignModal(true);
     closePGNModal();
+    updatePGNActionButtons();
     cleanupDragState();
     clearPremoveQueue();
     finalGameResult = '*';
@@ -2875,6 +2898,7 @@ function restartGame() {
 window.addEventListener('DOMContentLoaded', function() {
     updateTimeSummary();
     updateAILevelUI();
+    updatePGNActionButtons();
     var onlineNameInput = document.getElementById('online-name');
     if (onlineNameInput) {
         onlineNameInput.addEventListener('input', function() {
