@@ -779,6 +779,7 @@ function applyOnlineGameState(serializedState) {
     gameStartedAt = serializedState.gameStartedAt ? new Date(serializedState.gameStartedAt) : new Date();
     gameEndedAt = serializedState.gameEndedAt ? new Date(serializedState.gameEndedAt) : null;
     gameOver = finalGameResult !== '*';
+    turnStartedAt = gameOver ? null : (isLocalOnlineTurn() ? Date.now() : null);
     stopTimer();
     aiThinking = false;
     showAIThinking(false);
@@ -817,6 +818,7 @@ function enterOnlineGameFromRoom(room) {
     gameSetting.whiteName = room.whiteName || '백';
     gameSetting.blackName = room.blackName || '흑';
     syncDisplayedPlayerNames();
+    updateEndGameButton();
     document.getElementById('lobby-screen').classList.remove('active');
     document.getElementById('game-screen').classList.add('active');
     isFlipped = onlineState.playerColor === 'black';
@@ -1266,6 +1268,8 @@ function legalMovesForState(state, row, col) {
     var legal = [];
     for (var i = 0; i < pseudo.length; i++) {
         var tr = pseudo[i][0], tc = pseudo[i][1];
+        var target = state.board[tr][tc];
+        if (target && target.toUpperCase() === 'K') continue;
         var testBoard = cloneBoard(state.board);
         if (piece.toUpperCase() === 'P' && state.enPassantTarget && tr === state.enPassantTarget[0] && tc === state.enPassantTarget[1]) {
             testBoard[color === 'white' ? tr + 1 : tr - 1][tc] = '';
@@ -1590,6 +1594,7 @@ function selectMode(mode) {
     } else {
         onlineSettings.classList.remove('visible');
     }
+    updateEndGameButton();
     updateOnlineUI();
 }
 
@@ -1792,6 +1797,34 @@ function getResultByWinnerColor(color) {
     return color === 'white' ? '1-0' : '0-1';
 }
 
+function isLocalPvpMode() {
+    return gameSetting.mode === 'pvp';
+}
+
+function updateEndGameButton() {
+    var btn = document.getElementById('end-game-btn');
+    if (!btn) return;
+    btn.textContent = isLocalPvpMode() ? '🚪 종료' : '🏳️ 기권';
+}
+
+function updateResignModalCopy() {
+    var titleEl = document.getElementById('resign-modal-title');
+    var messageEl = document.getElementById('resign-modal-message');
+    var confirmBtn = document.getElementById('resign-confirm-btn');
+    if (!titleEl || !messageEl || !confirmBtn) return;
+
+    if (isLocalPvpMode()) {
+        titleEl.textContent = '게임 종료';
+        messageEl.textContent = '현재 로컬 PvP 게임을 종료하고 로비로 돌아갈까요?';
+        if (!resignModalPending) confirmBtn.textContent = '종료하기';
+        return;
+    }
+
+    titleEl.textContent = '기권 확인';
+    messageEl.textContent = '확인을 누르기 전까지는 게임이 계속 진행됩니다. 정말 기권할까요?';
+    if (!resignModalPending) confirmBtn.textContent = '기권하기';
+}
+
 function applyResignationOutcome(loserColor) {
     var winnerColor = opponentColor(loserColor);
     cleanupDragState();
@@ -1820,13 +1853,14 @@ function syncResignModalButtons() {
     if (cancelBtn) cancelBtn.disabled = resignModalPending;
     if (confirmBtn) {
         confirmBtn.disabled = resignModalPending;
-        confirmBtn.textContent = resignModalPending ? '처리 중...' : '기권하기';
+        if (resignModalPending) confirmBtn.textContent = '처리 중...';
     }
+    updateResignModalCopy();
 }
 
 function openResignModal() {
     if (gameOver || resignModalPending) return;
-    if (!getResigningColor()) return;
+    if (!isLocalPvpMode() && !getResigningColor()) return;
     setResignModalError('');
     syncResignModalButtons();
     document.getElementById('resign-modal').classList.add('active');
@@ -1846,6 +1880,12 @@ function resignGame() {
 
 function confirmResignGame() {
     if (gameOver || resignModalPending) return;
+
+    if (isLocalPvpMode()) {
+        closeResignModal(true);
+        backToLobby();
+        return;
+    }
 
     var loserColor = getResigningColor();
     if (!loserColor) {
@@ -1980,6 +2020,7 @@ function pseudoLegalMoves(b, row, col, castling, epTarget) {
     function addMove(tr, tc) {
         var target = b[tr][tc];
         if (target && pieceColor(target) === color) return false;
+        if (target && target.toUpperCase() === 'K') return false;
         moves.push([tr, tc]);
         return !target;
     }
@@ -1994,7 +2035,7 @@ function pseudoLegalMoves(b, row, col, castling, epTarget) {
         [-1, 1].forEach(function(dc) {
             var nr = row + dir, nc = col + dc;
             if (inBounds(nr, nc)) {
-                if (b[nr][nc] && pieceColor(b[nr][nc]) !== color) moves.push([nr, nc]);
+                if (b[nr][nc] && pieceColor(b[nr][nc]) !== color && b[nr][nc].toUpperCase() !== 'K') moves.push([nr, nc]);
                 if (epTarget && epTarget[0] === nr && epTarget[1] === nc) moves.push([nr, nc]);
             }
         });
@@ -2067,7 +2108,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     var color = pieceColor(piece);
     var isWhiteFirstMove = !firstMoveMade && color === 'white';
     var moveOptions = options || {};
-    var moveDurationMs = typeof moveOptions.forceDurationMs === 'number' ? moveOptions.forceDurationMs : (isWhiteFirstMove ? 100 : (turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0));
+    var moveDurationMs = typeof moveOptions.forceDurationMs === 'number' ? moveOptions.forceDurationMs : (isWhiteFirstMove ? 0 : (turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0));
     var captured = board[toRow][toCol];
     var moveNotation = '';
     var isCapture = false;
@@ -2834,6 +2875,7 @@ function initGame() {
     else { whiteTime = gameSetting.minutes * 60; blackTime = gameSetting.minutes * 60; }
 
     syncDisplayedPlayerNames();
+    updateEndGameButton();
 
     var wInc = document.getElementById('white-increment-badge'), bInc = document.getElementById('black-increment-badge');
     if (gameSetting.increment > 0) {
@@ -2899,6 +2941,7 @@ window.addEventListener('DOMContentLoaded', function() {
     updateTimeSummary();
     updateAILevelUI();
     updatePGNActionButtons();
+    updateEndGameButton();
     var onlineNameInput = document.getElementById('online-name');
     if (onlineNameInput) {
         onlineNameInput.addEventListener('input', function() {
