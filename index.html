@@ -215,6 +215,7 @@
             </div>
 
             <div class="controls">
+                <button class="ctrl-btn" onclick="savePGN()">Save PGN</button>
                 <button class="ctrl-btn" onclick="undoMove()">⏪ 되돌리기</button>
                 <button class="ctrl-btn" onclick="flipBoard()">🔄 뒤집기</button>
                 <button class="ctrl-btn danger" onclick="backToLobby()">🚪 나가기</button>
@@ -231,6 +232,7 @@
         <h2 id="gameover-title">게임 종료</h2>
         <p id="gameover-message"></p>
         <div class="modal-buttons">
+            <button class="modal-btn secondary" onclick="savePGN()">Save PGN</button>
             <button class="modal-btn primary" onclick="restartGame()">🔄 재시작</button>
             <button class="modal-btn secondary" onclick="backToLobby()">🏠 로비로</button>
         </div>

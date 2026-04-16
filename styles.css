@@ -733,14 +733,33 @@ body {
     grid-template-columns: 35px 1fr 1fr;
     padding: 3px 6px;
     border-radius: 4px;
+    gap: 4px;
 }
 
 .move-entry:nth-child(odd) { background: rgba(255,255,255,0.02); }
 .move-number { color: var(--text-secondary); font-size: 0.85em; }
-.move-white, .move-black { padding: 2px 6px; }
+.move-white, .move-black {
+    padding: 2px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 38px;
+}
+
+.move-notation {
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.move-time {
+    color: var(--text-secondary);
+    font-size: 0.72em;
+    line-height: 1.1;
+}
 
 .controls {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     flex-shrink: 0;
 }
@@ -799,7 +818,7 @@ body {
     font-size: 1.05em;
 }
 
-.modal-buttons { display: flex; gap: 12px; justify-content: center; }
+.modal-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
 .modal-btn {
     padding: 12px 28px;
