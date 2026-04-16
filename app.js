@@ -60,6 +60,7 @@ var capturedByBlack = [];
 var lastMoveFrom = null;
 var lastMoveTo = null;
 var firstMoveMade = false;
+var dragState = null;
 
 // ★ ============================================================
 //  Stockfish WASM 엔진 관련 변수
@@ -229,6 +230,101 @@ function isAITurn() {
     return gameSetting.mode === 'ai' && currentTurn === gameSetting.aiColor && !gameOver;
 }
 
+function canControlPiece(row, col) {
+    if (gameOver || isAITurn() || aiThinking) return false;
+    var piece = board[row][col];
+    if (!piece || pieceColor(piece) !== currentTurn) return false;
+    if (gameSetting.mode === 'ai' && pieceColor(piece) === gameSetting.aiColor) return false;
+    return true;
+}
+
+function isLegalDestination(row, col, moves) {
+    for (var i = 0; i < moves.length; i++) {
+        if (moves[i][0] === row && moves[i][1] === col) return true;
+    }
+    return false;
+}
+
+function clearDragHighlights() {
+    document.querySelectorAll('.square').forEach(function(square) {
+        square.classList.remove('selected', 'possible-move', 'capture-move', 'drag-over');
+    });
+    document.querySelectorAll('.piece-svg.dragging').forEach(function(pieceEl) {
+        pieceEl.classList.remove('dragging');
+    });
+}
+
+function applyDragHighlights() {
+    if (!dragState) return;
+
+    var originSquare = document.querySelector('.square[data-row="' + dragState.fromRow + '"][data-col="' + dragState.fromCol + '"]');
+    if (originSquare) originSquare.classList.add('selected');
+
+    dragState.moves.forEach(function(move) {
+        var square = document.querySelector('.square[data-row="' + move[0] + '"][data-col="' + move[1] + '"]');
+        if (!square) return;
+        if (board[move[0]][move[1]]) square.classList.add('capture-move');
+        else square.classList.add('possible-move');
+    });
+}
+
+function cleanupDragState() {
+    clearDragHighlights();
+    dragState = null;
+    selectedSquare = null;
+    possibleMoves = [];
+}
+
+function startPieceDrag(row, col, pieceEl, event) {
+    if (!canControlPiece(row, col)) {
+        if (event && event.preventDefault) event.preventDefault();
+        return;
+    }
+
+    var moves = legalMoves(row, col);
+    if (moves.length === 0) {
+        if (event && event.preventDefault) event.preventDefault();
+        return;
+    }
+
+    cleanupDragState();
+    dragState = {
+        fromRow: row,
+        fromCol: col,
+        moves: moves
+    };
+    selectedSquare = [row, col];
+    possibleMoves = moves.slice();
+    applyDragHighlights();
+
+    if (pieceEl) pieceEl.classList.add('dragging');
+
+    if (event && event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', row + ',' + col);
+    }
+}
+
+function finishDragMove(toRow, toCol) {
+    if (!dragState || !isLegalDestination(toRow, toCol, dragState.moves)) {
+        cleanupDragState();
+        renderBoard();
+        return;
+    }
+
+    var fromRow = dragState.fromRow;
+    var fromCol = dragState.fromCol;
+    var movingPiece = board[fromRow][fromCol];
+
+    cleanupDragState();
+
+    if (movingPiece && movingPiece.toUpperCase() === 'P' && (toRow === 0 || toRow === 7)) {
+        showPromotionModal(fromRow, fromCol, toRow, toCol);
+    } else {
+        executeMove(fromRow, fromCol, toRow, toCol, null);
+    }
+}
+
 // ============================================================
 //  로비 로직
 // ============================================================
@@ -382,6 +478,7 @@ function startGame() {
 
 function backToLobby() {
     stopTimer(); gameOver = true;
+    cleanupDragState();
     aiThinking = false;
     showAIThinking(false);
     // ★ 엔진 종료
@@ -595,6 +692,7 @@ function isInsufficientMaterial() {
 }
 
 function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
+    cleanupDragState();
     boardHistory.push(cloneState());
     var piece = board[fromRow][fromCol];
     var color = pieceColor(piece);
@@ -726,8 +824,38 @@ function renderBoard() {
                 var pieceDiv = document.createElement('div');
                 pieceDiv.className = 'piece-svg';
                 pieceDiv.innerHTML = PIECE_SVG[piece];
+                if (canControlPiece(displayR, displayC)) {
+                    pieceDiv.classList.add('draggable-piece');
+                    pieceDiv.draggable = true;
+                    (function(dr, dc, draggablePiece) {
+                        draggablePiece.addEventListener('dragstart', function(e) {
+                            startPieceDrag(dr, dc, draggablePiece, e);
+                        });
+                        draggablePiece.addEventListener('dragend', function() {
+                            cleanupDragState();
+                            renderBoard();
+                        });
+                    })(displayR, displayC, pieceDiv);
+                }
                 square.appendChild(pieceDiv);
             }
+
+            (function(dr, dc, squareEl) {
+                squareEl.addEventListener('dragover', function(e) {
+                    if (!dragState || !isLegalDestination(dr, dc, dragState.moves)) return;
+                    e.preventDefault();
+                    squareEl.classList.add('drag-over');
+                });
+                squareEl.addEventListener('dragleave', function() {
+                    squareEl.classList.remove('drag-over');
+                });
+                squareEl.addEventListener('drop', function(e) {
+                    if (!dragState) return;
+                    e.preventDefault();
+                    squareEl.classList.remove('drag-over');
+                    finishDragMove(dr, dc);
+                });
+            })(displayR, displayC, square);
 
             (function(dr, dc) { square.addEventListener('click', function() { onSquareClick(dr, dc); }); })(displayR, displayC);
             chessboard.appendChild(square);
@@ -754,13 +882,8 @@ function onSquareClick(row, col) {
     // ★ AI 턴이면 클릭 무시
     if (isAITurn() || aiThinking) return;
     
-    var piece = board[row][col];
     if (selectedSquare) {
-        var isMove = false;
-        for (var m = 0; m < possibleMoves.length; m++) {
-            if (possibleMoves[m][0] === row && possibleMoves[m][1] === col) { isMove = true; break; }
-        }
-        if (isMove) {
+        if (isLegalDestination(row, col, possibleMoves)) {
             var movingPiece = board[selectedSquare[0]][selectedSquare[1]];
             if (movingPiece.toUpperCase() === 'P' && (row === 0 || row === 7)) {
                 showPromotionModal(selectedSquare[0], selectedSquare[1], row, col);
@@ -770,9 +893,8 @@ function onSquareClick(row, col) {
             selectedSquare = null; possibleMoves = []; return;
         }
     }
-    if (piece && pieceColor(piece) === currentTurn) {
+    if (canControlPiece(row, col)) {
         // ★ AI 모드에서는 자기 기물만 선택 가능
-        if (gameSetting.mode === 'ai' && pieceColor(piece) === gameSetting.aiColor) return;
         selectedSquare = [row, col]; possibleMoves = legalMoves(row, col);
     } else { selectedSquare = null; possibleMoves = []; }
     renderBoard();
@@ -881,6 +1003,7 @@ function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerI
 // ★ 되돌리기: AI 모드에서는 AI 수까지 같이 되돌림 (2수)
 function undoMove() {
     if (boardHistory.length === 0) return;
+    cleanupDragState();
     // ★ AI가 생각 중이면 중단
     if (aiThinking && stockfishWorker) {
         stockfishWorker.postMessage('stop');
@@ -912,6 +1035,7 @@ function undoMove() {
 function flipBoard() { isFlipped = !isFlipped; renderBoard(); }
 
 function initGame() {
+    cleanupDragState();
     board = INITIAL_BOARD.map(function(row) { return row.slice(); });
     currentTurn = 'white'; selectedSquare = null; possibleMoves = [];
     moveHistory = []; boardHistory = [];
@@ -966,6 +1090,7 @@ function initGame() {
 
 function restartGame() {
     document.getElementById('gameover-modal').classList.remove('active');
+    cleanupDragState();
     if (gameSetting.mode === 'ai' && stockfishWorker) {
         stockfishWorker.postMessage('stop');
         stockfishWorker.postMessage('ucinewgame');
