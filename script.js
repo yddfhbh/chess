@@ -4,8 +4,8 @@
 
 // ── 기물 유니코드 ──
 const PIECES = {
-    K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙',
-    k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟'
+    K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟',
+    k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙'
 };
 
 // ── 초기 보드 배치 ──
@@ -20,9 +20,19 @@ const INITIAL_BOARD = [
     ['R','N','B','Q','K','B','N','R']
 ];
 
+// ── 게임 설정 (로비에서 결정) ──
+let gameSetting = {
+    mode: 'pvp',
+    minutes: 5,
+    increment: 0,
+    whiteName: '백 (White)',
+    blackName: '흑 (Black)',
+    unlimited: false
+};
+
 // ── 게임 상태 ──
 let board = [];
-let currentTurn = 'white'; // 'white' | 'black'
+let currentTurn = 'white';
 let selectedSquare = null;
 let possibleMoves = [];
 let moveHistory = [];
@@ -40,9 +50,109 @@ let capturedByWhite = [];
 let capturedByBlack = [];
 let lastMoveFrom = null;
 let lastMoveTo = null;
-let promotionCallback = null;
+let firstMoveMade = false;
 
-// ── 유틸리티 ──
+// ============================================================
+//  로비 (시작 화면) 로직
+// ============================================================
+
+function selectMode(mode) {
+    if (mode !== 'pvp') return;
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector('.mode-btn[data-mode="' + mode + '"]').classList.add('active');
+    gameSetting.mode = mode;
+}
+
+function applyPreset(minutes, increment, el) {
+    // 프리셋 버튼 활성화
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    if (el) el.classList.add('active');
+
+    // 입력 필드 업데이트
+    document.getElementById('custom-minutes').value = minutes;
+    document.getElementById('custom-increment').value = increment;
+
+    gameSetting.minutes = minutes;
+    gameSetting.increment = increment;
+    gameSetting.unlimited = (minutes === 0 && increment === 0);
+
+    updateTimeSummary();
+}
+
+function adjustTime(type, delta) {
+    var input = document.getElementById(type === 'minutes' ? 'custom-minutes' : 'custom-increment');
+    var val = parseInt(input.value) || 0;
+    val += delta;
+
+    if (type === 'minutes') val = Math.max(0, Math.min(180, val));
+    else val = Math.max(0, Math.min(60, val));
+
+    input.value = val;
+    updateCustomPreset();
+}
+
+function updateCustomPreset() {
+    var minutes = parseInt(document.getElementById('custom-minutes').value) || 0;
+    var increment = parseInt(document.getElementById('custom-increment').value) || 0;
+
+    gameSetting.minutes = minutes;
+    gameSetting.increment = increment;
+    gameSetting.unlimited = (minutes === 0 && increment === 0);
+
+    // 프리셋 버튼 매칭 해제
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+
+    // 매칭되는 프리셋 찾기
+    var presets = document.querySelectorAll('.preset-btn');
+    presets.forEach(function(btn) {
+        var m = btn.getAttribute('data-minutes');
+        var i = btn.getAttribute('data-increment');
+        if (m !== null && parseInt(m) === minutes && parseInt(i) === increment) {
+            btn.classList.add('active');
+        }
+    });
+
+    updateTimeSummary();
+}
+
+function updateTimeSummary() {
+    var el = document.getElementById('time-summary-text');
+    if (gameSetting.unlimited) {
+        el.textContent = '⏱️ 시간 제한 없음 (무제한)';
+    } else {
+        var timeStr = gameSetting.minutes > 0 ? gameSetting.minutes + '분' : '0분';
+        var incStr = gameSetting.increment > 0 ? gameSetting.increment + '초' : '없음';
+        el.textContent = '⏱️ 각 플레이어: ' + timeStr + ' | 추가 시간(수 당): ' + incStr;
+    }
+}
+
+function startGame() {
+    var whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
+    var blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
+    gameSetting.whiteName = whiteName;
+    gameSetting.blackName = blackName;
+
+    document.getElementById('lobby-screen').classList.remove('active');
+    document.getElementById('game-screen').classList.add('active');
+
+    initGame();
+}
+
+function backToLobby() {
+    stopTimer();
+    gameOver = true;
+
+    document.getElementById('gameover-modal').classList.remove('active');
+    document.getElementById('promotion-modal').classList.remove('active');
+
+    document.getElementById('game-screen').classList.remove('active');
+    document.getElementById('lobby-screen').classList.add('active');
+}
+
+// ============================================================
+//  게임 엔진
+// ============================================================
+
 function isWhite(piece) { return piece && piece === piece.toUpperCase(); }
 function isBlack(piece) { return piece && piece === piece.toLowerCase(); }
 function pieceColor(piece) {
@@ -51,66 +161,64 @@ function pieceColor(piece) {
 }
 function opponentColor(color) { return color === 'white' ? 'black' : 'white'; }
 function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
-
-function cloneBoard(b) { return b.map(row => [...row]); }
+function cloneBoard(b) { return b.map(function(row) { return row.slice(); }); }
 
 function cloneState() {
     return {
         board: cloneBoard(board),
-        currentTurn,
-        castlingRights: { ...castlingRights },
-        enPassantTarget: enPassantTarget ? [...enPassantTarget] : null,
-        halfMoveClock,
-        fullMoveNumber,
-        capturedByWhite: [...capturedByWhite],
-        capturedByBlack: [...capturedByBlack],
-        lastMoveFrom: lastMoveFrom ? [...lastMoveFrom] : null,
-        lastMoveTo: lastMoveTo ? [...lastMoveTo] : null,
-        whiteTime,
-        blackTime
+        currentTurn: currentTurn,
+        castlingRights: { K: castlingRights.K, Q: castlingRights.Q, k: castlingRights.k, q: castlingRights.q },
+        enPassantTarget: enPassantTarget ? enPassantTarget.slice() : null,
+        halfMoveClock: halfMoveClock,
+        fullMoveNumber: fullMoveNumber,
+        capturedByWhite: capturedByWhite.slice(),
+        capturedByBlack: capturedByBlack.slice(),
+        lastMoveFrom: lastMoveFrom ? lastMoveFrom.slice() : null,
+        lastMoveTo: lastMoveTo ? lastMoveTo.slice() : null,
+        whiteTime: whiteTime,
+        blackTime: blackTime,
+        firstMoveMade: firstMoveMade
     };
 }
 
 function restoreState(state) {
     board = cloneBoard(state.board);
     currentTurn = state.currentTurn;
-    castlingRights = { ...state.castlingRights };
-    enPassantTarget = state.enPassantTarget ? [...state.enPassantTarget] : null;
+    castlingRights = { K: state.castlingRights.K, Q: state.castlingRights.Q, k: state.castlingRights.k, q: state.castlingRights.q };
+    enPassantTarget = state.enPassantTarget ? state.enPassantTarget.slice() : null;
     halfMoveClock = state.halfMoveClock;
     fullMoveNumber = state.fullMoveNumber;
-    capturedByWhite = [...state.capturedByWhite];
-    capturedByBlack = [...state.capturedByBlack];
-    lastMoveFrom = state.lastMoveFrom ? [...state.lastMoveFrom] : null;
-    lastMoveTo = state.lastMoveTo ? [...state.lastMoveTo] : null;
+    capturedByWhite = state.capturedByWhite.slice();
+    capturedByBlack = state.capturedByBlack.slice();
+    lastMoveFrom = state.lastMoveFrom ? state.lastMoveFrom.slice() : null;
+    lastMoveTo = state.lastMoveTo ? state.lastMoveTo.slice() : null;
     whiteTime = state.whiteTime;
     blackTime = state.blackTime;
+    firstMoveMade = state.firstMoveMade;
 }
 
-// ── 킹 위치 찾기 ──
 function findKing(b, color) {
-    const king = color === 'white' ? 'K' : 'k';
-    for (let r = 0; r < 8; r++)
-        for (let c = 0; c < 8; c++)
+    var king = color === 'white' ? 'K' : 'k';
+    for (var r = 0; r < 8; r++)
+        for (var c = 0; c < 8; c++)
             if (b[r][c] === king) return [r, c];
     return null;
 }
 
-// ── 특정 칸이 공격받는지 ──
 function isSquareAttacked(b, row, col, byColor) {
-    // 나이트 공격
-    const knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
-    const knight = byColor === 'white' ? 'N' : 'n';
-    for (const [dr, dc] of knightMoves) {
-        const nr = row + dr, nc = col + dc;
+    var knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+    var knight = byColor === 'white' ? 'N' : 'n';
+    for (var i = 0; i < knightMoves.length; i++) {
+        var nr = row + knightMoves[i][0], nc = col + knightMoves[i][1];
         if (inBounds(nr, nc) && b[nr][nc] === knight) return true;
     }
 
-    // 직선 공격 (룩, 퀸)
-    const rook = byColor === 'white' ? 'R' : 'r';
-    const queen = byColor === 'white' ? 'Q' : 'q';
-    const straightDirs = [[-1,0],[1,0],[0,-1],[0,1]];
-    for (const [dr, dc] of straightDirs) {
-        let nr = row + dr, nc = col + dc;
+    var rook = byColor === 'white' ? 'R' : 'r';
+    var queen = byColor === 'white' ? 'Q' : 'q';
+    var straightDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (var d = 0; d < straightDirs.length; d++) {
+        var dr = straightDirs[d][0], dc = straightDirs[d][1];
+        var nr = row + dr, nc = col + dc;
         while (inBounds(nr, nc)) {
             if (b[nr][nc]) {
                 if (b[nr][nc] === rook || b[nr][nc] === queen) return true;
@@ -120,11 +228,11 @@ function isSquareAttacked(b, row, col, byColor) {
         }
     }
 
-    // 대각선 공격 (비숍, 퀸)
-    const bishop = byColor === 'white' ? 'B' : 'b';
-    const diagDirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
-    for (const [dr, dc] of diagDirs) {
-        let nr = row + dr, nc = col + dc;
+    var bishop = byColor === 'white' ? 'B' : 'b';
+    var diagDirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+    for (var d = 0; d < diagDirs.length; d++) {
+        var dr = diagDirs[d][0], dc = diagDirs[d][1];
+        var nr = row + dr, nc = col + dc;
         while (inBounds(nr, nc)) {
             if (b[nr][nc]) {
                 if (b[nr][nc] === bishop || b[nr][nc] === queen) return true;
@@ -134,18 +242,16 @@ function isSquareAttacked(b, row, col, byColor) {
         }
     }
 
-    // 폰 공격
-    const pawnDir = byColor === 'white' ? 1 : -1;
-    const pawn = byColor === 'white' ? 'P' : 'p';
+    var pawnDir = byColor === 'white' ? 1 : -1;
+    var pawn = byColor === 'white' ? 'P' : 'p';
     if (inBounds(row + pawnDir, col - 1) && b[row + pawnDir][col - 1] === pawn) return true;
     if (inBounds(row + pawnDir, col + 1) && b[row + pawnDir][col + 1] === pawn) return true;
 
-    // 킹 공격
-    const king = byColor === 'white' ? 'K' : 'k';
-    for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++) {
+    var king = byColor === 'white' ? 'K' : 'k';
+    for (var dr = -1; dr <= 1; dr++)
+        for (var dc = -1; dc <= 1; dc++) {
             if (dr === 0 && dc === 0) continue;
-            const nr = row + dr, nc = col + dc;
+            var nr = row + dr, nc = col + dc;
             if (inBounds(nr, nc) && b[nr][nc] === king) return true;
         }
 
@@ -153,127 +259,109 @@ function isSquareAttacked(b, row, col, byColor) {
 }
 
 function isInCheck(b, color) {
-    const kingPos = findKing(b, color);
+    var kingPos = findKing(b, color);
     if (!kingPos) return false;
     return isSquareAttacked(b, kingPos[0], kingPos[1], opponentColor(color));
 }
 
-// ── 의사 합법 수 생성 (체크 필터 전) ──
 function pseudoLegalMoves(b, row, col, castling, epTarget) {
-    const piece = b[row][col];
+    var piece = b[row][col];
     if (!piece) return [];
-    const color = pieceColor(piece);
-    const moves = [];
-    const type = piece.toUpperCase();
+    var color = pieceColor(piece);
+    var moves = [];
+    var type = piece.toUpperCase();
 
     function addMove(tr, tc) {
-        const target = b[tr][tc];
+        var target = b[tr][tc];
         if (target && pieceColor(target) === color) return false;
         moves.push([tr, tc]);
-        return !target; // true면 빈칸이라 계속 진행 가능
+        return !target;
     }
 
     if (type === 'P') {
-        const dir = color === 'white' ? -1 : 1;
-        const startRow = color === 'white' ? 6 : 1;
-        // 전진
+        var dir = color === 'white' ? -1 : 1;
+        var startRow = color === 'white' ? 6 : 1;
         if (inBounds(row + dir, col) && !b[row + dir][col]) {
             moves.push([row + dir, col]);
             if (row === startRow && !b[row + 2 * dir][col])
                 moves.push([row + 2 * dir, col]);
         }
-        // 대각선 캡처
-        for (const dc of [-1, 1]) {
-            const nr = row + dir, nc = col + dc;
+        var pawnCaptures = [-1, 1];
+        for (var i = 0; i < pawnCaptures.length; i++) {
+            var dc = pawnCaptures[i];
+            var nr = row + dir, nc = col + dc;
             if (inBounds(nr, nc)) {
-                if (b[nr][nc] && pieceColor(b[nr][nc]) !== color)
-                    moves.push([nr, nc]);
-                // 앙파상
-                if (epTarget && epTarget[0] === nr && epTarget[1] === nc)
-                    moves.push([nr, nc]);
+                if (b[nr][nc] && pieceColor(b[nr][nc]) !== color) moves.push([nr, nc]);
+                if (epTarget && epTarget[0] === nr && epTarget[1] === nc) moves.push([nr, nc]);
             }
         }
     } else if (type === 'N') {
-        for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
-            const nr = row + dr, nc = col + dc;
+        var knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+        for (var i = 0; i < knightMoves.length; i++) {
+            var nr = row + knightMoves[i][0], nc = col + knightMoves[i][1];
             if (inBounds(nr, nc)) addMove(nr, nc);
         }
     } else if (type === 'B') {
-        for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
-            let nr = row + dr, nc = col + dc;
-            while (inBounds(nr, nc)) {
-                if (!addMove(nr, nc)) break;
-                nr += dr; nc += dc;
-            }
+        var dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        for (var d = 0; d < dirs.length; d++) {
+            var nr = row + dirs[d][0], nc = col + dirs[d][1];
+            while (inBounds(nr, nc)) { if (!addMove(nr, nc)) break; nr += dirs[d][0]; nc += dirs[d][1]; }
         }
     } else if (type === 'R') {
-        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-            let nr = row + dr, nc = col + dc;
-            while (inBounds(nr, nc)) {
-                if (!addMove(nr, nc)) break;
-                nr += dr; nc += dc;
-            }
+        var dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (var d = 0; d < dirs.length; d++) {
+            var nr = row + dirs[d][0], nc = col + dirs[d][1];
+            while (inBounds(nr, nc)) { if (!addMove(nr, nc)) break; nr += dirs[d][0]; nc += dirs[d][1]; }
         }
     } else if (type === 'Q') {
-        for (const [dr, dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
-            let nr = row + dr, nc = col + dc;
-            while (inBounds(nr, nc)) {
-                if (!addMove(nr, nc)) break;
-                nr += dr; nc += dc;
-            }
+        var dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+        for (var d = 0; d < dirs.length; d++) {
+            var nr = row + dirs[d][0], nc = col + dirs[d][1];
+            while (inBounds(nr, nc)) { if (!addMove(nr, nc)) break; nr += dirs[d][0]; nc += dirs[d][1]; }
         }
     } else if (type === 'K') {
-        for (let dr = -1; dr <= 1; dr++)
-            for (let dc = -1; dc <= 1; dc++) {
+        for (var dr = -1; dr <= 1; dr++)
+            for (var dc = -1; dc <= 1; dc++) {
                 if (dr === 0 && dc === 0) continue;
-                const nr = row + dr, nc = col + dc;
+                var nr = row + dr, nc = col + dc;
                 if (inBounds(nr, nc)) addMove(nr, nc);
             }
         // 캐슬링
         if (color === 'white' && row === 7 && col === 4) {
-            // 킹사이드
-            if (castling.K && b[7][5] === '' && b[7][6] === '' && b[7][7] === 'R'
-                && !isSquareAttacked(b, 7, 4, 'black')
-                && !isSquareAttacked(b, 7, 5, 'black')
-                && !isSquareAttacked(b, 7, 6, 'black'))
-                moves.push([7, 6]);
-            // 퀸사이드
-            if (castling.Q && b[7][3] === '' && b[7][2] === '' && b[7][1] === '' && b[7][0] === 'R'
-                && !isSquareAttacked(b, 7, 4, 'black')
-                && !isSquareAttacked(b, 7, 3, 'black')
-                && !isSquareAttacked(b, 7, 2, 'black'))
-                moves.push([7, 2]);
+            if (castling.K && b[7][5]==='' && b[7][6]==='' && b[7][7]==='R'
+                && !isSquareAttacked(b,7,4,'black') && !isSquareAttacked(b,7,5,'black') && !isSquareAttacked(b,7,6,'black'))
+                moves.push([7,6]);
+            if (castling.Q && b[7][3]==='' && b[7][2]==='' && b[7][1]==='' && b[7][0]==='R'
+                && !isSquareAttacked(b,7,4,'black') && !isSquareAttacked(b,7,3,'black') && !isSquareAttacked(b,7,2,'black'))
+                moves.push([7,2]);
         }
         if (color === 'black' && row === 0 && col === 4) {
-            if (castling.k && b[0][5] === '' && b[0][6] === '' && b[0][7] === 'r'
-                && !isSquareAttacked(b, 0, 4, 'white')
-                && !isSquareAttacked(b, 0, 5, 'white')
-                && !isSquareAttacked(b, 0, 6, 'white'))
-                moves.push([0, 6]);
-            if (castling.q && b[0][3] === '' && b[0][2] === '' && b[0][1] === '' && b[0][0] === 'r'
-                && !isSquareAttacked(b, 0, 4, 'white')
-                && !isSquareAttacked(b, 0, 3, 'white')
-                && !isSquareAttacked(b, 0, 2, 'white'))
-                moves.push([0, 2]);
+            if (castling.k && b[0][5]==='' && b[0][6]==='' && b[0][7]==='r'
+                && !isSquareAttacked(b,0,4,'white') && !isSquareAttacked(b,0,5,'white') && !isSquareAttacked(b,0,6,'white'))
+                moves.push([0,6]);
+            if (castling.q && b[0][3]==='' && b[0][2]==='' && b[0][1]==='' && b[0][0]==='r'
+                && !isSquareAttacked(b,0,4,'white') && !isSquareAttacked(b,0,3,'white') && !isSquareAttacked(b,0,2,'white'))
+                moves.push([0,2]);
         }
     }
 
     return moves;
 }
 
-// ── 합법 수 (체크 필터 적용) ──
 function legalMoves(row, col) {
-    const piece = board[row][col];
+    var piece = board[row][col];
     if (!piece) return [];
-    const color = pieceColor(piece);
-    const pseudo = pseudoLegalMoves(board, row, col, castlingRights, enPassantTarget);
-    const legal = [];
+    var color = pieceColor(piece);
+    var pseudo = pseudoLegalMoves(board, row, col, castlingRights, enPassantTarget);
+    var legal = [];
 
-    for (const [tr, tc] of pseudo) {
-        const testBoard = cloneBoard(board);
-        // 앙파상 처리
+    for (var i = 0; i < pseudo.length; i++) {
+        var tr = pseudo[i][0], tc = pseudo[i][1];
+        var testBoard = cloneBoard(board);
+
+        // 앙파상 캡처
         if (piece.toUpperCase() === 'P' && enPassantTarget && tr === enPassantTarget[0] && tc === enPassantTarget[1]) {
-            const capturedRow = color === 'white' ? tr + 1 : tr - 1;
+            var capturedRow = color === 'white' ? tr + 1 : tr - 1;
             testBoard[capturedRow][tc] = '';
         }
         // 캐슬링 룩 이동
@@ -281,34 +369,34 @@ function legalMoves(row, col) {
             if (tc === 6) { testBoard[row][5] = testBoard[row][7]; testBoard[row][7] = ''; }
             if (tc === 2) { testBoard[row][3] = testBoard[row][0]; testBoard[row][0] = ''; }
         }
+
         testBoard[tr][tc] = testBoard[row][col];
         testBoard[row][col] = '';
+
         if (!isInCheck(testBoard, color)) legal.push([tr, tc]);
     }
 
     return legal;
 }
 
-// ── 모든 합법 수 존재 여부 ──
 function hasAnyLegalMoves(color) {
-    for (let r = 0; r < 8; r++)
-        for (let c = 0; c < 8; c++)
+    for (var r = 0; r < 8; r++)
+        for (var c = 0; c < 8; c++)
             if (board[r][c] && pieceColor(board[r][c]) === color && legalMoves(r, c).length > 0)
                 return true;
     return false;
 }
 
-// ── 기물 부족 무승부 체크 ──
 function isInsufficientMaterial() {
-    const pieces = { white: [], black: [] };
-    for (let r = 0; r < 8; r++)
-        for (let c = 0; c < 8; c++) {
-            const p = board[r][c];
+    var pieces = { white: [], black: [] };
+    for (var r = 0; r < 8; r++)
+        for (var c = 0; c < 8; c++) {
+            var p = board[r][c];
             if (p) pieces[pieceColor(p)].push(p.toUpperCase());
         }
-    const w = pieces.white.filter(p => p !== 'K');
-    const b = pieces.black.filter(p => p !== 'K');
-    if (w.length === 0 && b.length === 0) return true; // K vs K
+    var w = pieces.white.filter(function(p) { return p !== 'K'; });
+    var b = pieces.black.filter(function(p) { return p !== 'K'; });
+    if (w.length === 0 && b.length === 0) return true;
     if (w.length === 0 && b.length === 1 && (b[0] === 'B' || b[0] === 'N')) return true;
     if (b.length === 0 && w.length === 1 && (w[0] === 'B' || w[0] === 'N')) return true;
     return false;
@@ -318,24 +406,23 @@ function isInsufficientMaterial() {
 function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     boardHistory.push(cloneState());
 
-    const piece = board[fromRow][fromCol];
-    const color = pieceColor(piece);
-    const captured = board[toRow][toCol];
-    let moveNotation = '';
-    let isCapture = false;
-    let isCastle = false;
+    var piece = board[fromRow][fromCol];
+    var color = pieceColor(piece);
+    var captured = board[toRow][toCol];
+    var moveNotation = '';
+    var isCapture = false;
+    var isCastle = false;
 
-    // 캡처 기록
     if (captured) {
         isCapture = true;
         if (color === 'white') capturedByWhite.push(captured);
         else capturedByBlack.push(captured);
     }
 
-    // 앙파상 캡처
+    // 앙파상
     if (piece.toUpperCase() === 'P' && enPassantTarget && toRow === enPassantTarget[0] && toCol === enPassantTarget[1]) {
-        const capturedRow = color === 'white' ? toRow + 1 : toRow - 1;
-        const epCaptured = board[capturedRow][toCol];
+        var capturedRow = color === 'white' ? toRow + 1 : toRow - 1;
+        var epCaptured = board[capturedRow][toCol];
         if (color === 'white') capturedByWhite.push(epCaptured);
         else capturedByBlack.push(epCaptured);
         board[capturedRow][toCol] = '';
@@ -345,18 +432,10 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     // 캐슬링
     if (piece.toUpperCase() === 'K' && Math.abs(toCol - fromCol) === 2) {
         isCastle = true;
-        if (toCol === 6) {
-            board[fromRow][5] = board[fromRow][7];
-            board[fromRow][7] = '';
-            moveNotation = 'O-O';
-        } else {
-            board[fromRow][3] = board[fromRow][0];
-            board[fromRow][0] = '';
-            moveNotation = 'O-O-O';
-        }
+        if (toCol === 6) { board[fromRow][5] = board[fromRow][7]; board[fromRow][7] = ''; moveNotation = 'O-O'; }
+        else { board[fromRow][3] = board[fromRow][0]; board[fromRow][0] = ''; moveNotation = 'O-O-O'; }
     }
 
-    // 기물 이동
     board[toRow][toCol] = piece;
     board[fromRow][fromCol] = '';
 
@@ -369,9 +448,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
 
     // 프로모션
     if (piece.toUpperCase() === 'P' && (toRow === 0 || toRow === 7)) {
-        if (promotionPiece) {
-            board[toRow][toCol] = promotionPiece;
-        }
+        if (promotionPiece) board[toRow][toCol] = promotionPiece;
     }
 
     // 캐슬링 권한 업데이트
@@ -386,11 +463,11 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     if (toRow === 0 && toCol === 7) castlingRights.k = false;
     if (toRow === 0 && toCol === 0) castlingRights.q = false;
 
-    // 기보 표기법
+    // 기보 표기
     if (!isCastle) {
-        const files = 'abcdefgh';
-        const ranks = '87654321';
-        const pType = piece.toUpperCase();
+        var files = 'abcdefgh';
+        var ranks = '87654321';
+        var pType = piece.toUpperCase();
         if (pType === 'P') {
             moveNotation = isCapture ? files[fromCol] + 'x' : '';
             moveNotation += files[toCol] + ranks[toRow];
@@ -400,34 +477,36 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
         if (promotionPiece) moveNotation += '=' + promotionPiece.toUpperCase();
     }
 
-    // 마지막 이동 기록
     lastMoveFrom = [fromRow, fromCol];
     lastMoveTo = [toRow, toCol];
 
-    // 반수 시계
     if (piece.toUpperCase() === 'P' || isCapture) halfMoveClock = 0;
     else halfMoveClock++;
 
-    // 턴 전환
+    // 인크리먼트 추가
+    if (!gameSetting.unlimited && firstMoveMade && gameSetting.increment > 0) {
+        if (color === 'white') whiteTime += gameSetting.increment;
+        else blackTime += gameSetting.increment;
+    }
+
+    if (!firstMoveMade) firstMoveMade = true;
+
     if (currentTurn === 'black') fullMoveNumber++;
     currentTurn = opponentColor(currentTurn);
 
-    // 체크/체크메이트/스테일메이트 확인
-    const inCheck = isInCheck(board, currentTurn);
-    const hasLegal = hasAnyLegalMoves(currentTurn);
+    var inCheck = isInCheck(board, currentTurn);
+    var hasLegal = hasAnyLegalMoves(currentTurn);
 
     if (inCheck) moveNotation += hasLegal ? '+' : '#';
 
-    // 기보 추가
     addMoveToHistory(moveNotation, color);
 
-    // 게임 종료 조건
     if (!hasLegal) {
         gameOver = true;
         stopTimer();
         if (inCheck) {
-            const winner = color === 'white' ? '백' : '흑';
-            showGameOver('체크메이트! 🏆', `${winner}의 승리입니다!`);
+            var winner = color === 'white' ? gameSetting.whiteName : gameSetting.blackName;
+            showGameOver('체크메이트! 🏆', winner + '의 승리입니다!');
         } else {
             showGameOver('스테일메이트!', '무승부입니다.');
         }
@@ -441,25 +520,30 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
         showGameOver('50수 규칙!', '무승부입니다.');
     }
 
+    // 타이머 시작 (첫 수 이후)
+    if (!gameSetting.unlimited && !gameOver && !timerInterval) {
+        startTimer();
+    }
+
     renderBoard();
     updateUI();
 }
 
 // ── 기보 표시 ──
 function addMoveToHistory(notation, color) {
-    moveHistory.push({ notation, color });
-    const moveList = document.getElementById('move-list');
+    moveHistory.push({ notation: notation, color: color });
+    var moveList = document.getElementById('move-list');
 
     if (color === 'white') {
-        const entry = document.createElement('div');
+        var entry = document.createElement('div');
         entry.className = 'move-entry';
-        entry.innerHTML = `<span class="move-number">${fullMoveNumber}.</span>
-                           <span class="move-white">${notation}</span>
-                           <span class="move-black"></span>`;
+        entry.innerHTML = '<span class="move-number">' + fullMoveNumber + '.</span>' +
+                           '<span class="move-white">' + notation + '</span>' +
+                           '<span class="move-black"></span>';
         moveList.appendChild(entry);
     } else {
-        const entries = moveList.querySelectorAll('.move-entry');
-        const last = entries[entries.length - 1];
+        var entries = moveList.querySelectorAll('.move-entry');
+        var last = entries[entries.length - 1];
         if (last) last.querySelector('.move-black').textContent = notation;
     }
     moveList.scrollTop = moveList.scrollHeight;
@@ -467,45 +551,49 @@ function addMoveToHistory(notation, color) {
 
 // ── 보드 렌더링 ──
 function renderBoard() {
-    const chessboard = document.getElementById('chessboard');
+    var chessboard = document.getElementById('chessboard');
     chessboard.innerHTML = '';
 
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const displayR = isFlipped ? 7 - r : r;
-            const displayC = isFlipped ? 7 - c : c;
+    for (var r = 0; r < 8; r++) {
+        for (var c = 0; c < 8; c++) {
+            var displayR = isFlipped ? 7 - r : r;
+            var displayC = isFlipped ? 7 - c : c;
 
-            const square = document.createElement('div');
+            var square = document.createElement('div');
             square.className = 'square ' + ((displayR + displayC) % 2 === 0 ? 'light' : 'dark');
             square.dataset.row = displayR;
             square.dataset.col = displayC;
 
-            // 마지막 이동 하이라이트
             if (lastMoveFrom && lastMoveFrom[0] === displayR && lastMoveFrom[1] === displayC)
                 square.classList.add('last-move');
             if (lastMoveTo && lastMoveTo[0] === displayR && lastMoveTo[1] === displayC)
                 square.classList.add('last-move');
 
-            // 선택된 칸
             if (selectedSquare && selectedSquare[0] === displayR && selectedSquare[1] === displayC)
                 square.classList.add('selected');
 
-            // 이동 가능 표시
-            const isPossible = possibleMoves.some(m => m[0] === displayR && m[1] === displayC);
+            var isPossible = false;
+            for (var m = 0; m < possibleMoves.length; m++) {
+                if (possibleMoves[m][0] === displayR && possibleMoves[m][1] === displayC) {
+                    isPossible = true;
+                    break;
+                }
+            }
             if (isPossible) {
                 if (board[displayR][displayC]) square.classList.add('capture-move');
                 else square.classList.add('possible-move');
             }
 
-            // 체크 표시
-            const piece = board[displayR][displayC];
+            var piece = board[displayR][displayC];
             if (piece && piece.toUpperCase() === 'K' && isInCheck(board, pieceColor(piece)))
                 square.classList.add('check');
 
-            // 기물 표시
             if (piece) square.textContent = PIECES[piece];
 
-            square.addEventListener('click', () => onSquareClick(displayR, displayC));
+            (function(dr, dc) {
+                square.addEventListener('click', function() { onSquareClick(dr, dc); });
+            })(displayR, displayC);
+
             chessboard.appendChild(square);
         }
     }
@@ -514,42 +602,48 @@ function renderBoard() {
 }
 
 function renderLabels() {
-    const files = isFlipped ? 'hgfedcba' : 'abcdefgh';
-    const ranks = isFlipped ? '12345678' : '87654321';
+    var files = isFlipped ? 'hgfedcba' : 'abcdefgh';
+    var ranks = isFlipped ? '12345678' : '87654321';
 
-    ['rank-labels-top', 'rank-labels-bottom'].forEach(id => {
-        const el = document.getElementById(id);
+    var labelIds = ['rank-labels-top', 'rank-labels-bottom'];
+    for (var l = 0; l < labelIds.length; l++) {
+        var el = document.getElementById(labelIds[l]);
         el.innerHTML = '';
-        for (const f of files) {
-            const span = document.createElement('span');
-            span.textContent = f;
+        for (var i = 0; i < files.length; i++) {
+            var span = document.createElement('span');
+            span.textContent = files[i];
             el.appendChild(span);
         }
-    });
+    }
 
-    ['file-labels-left', 'file-labels-right'].forEach(id => {
-        const el = document.getElementById(id);
+    var fileLabelIds = ['file-labels-left', 'file-labels-right'];
+    for (var l = 0; l < fileLabelIds.length; l++) {
+        var el = document.getElementById(fileLabelIds[l]);
         el.innerHTML = '';
-        for (const r of ranks) {
-            const span = document.createElement('span');
-            span.textContent = r;
+        for (var i = 0; i < ranks.length; i++) {
+            var span = document.createElement('span');
+            span.textContent = ranks[i];
             el.appendChild(span);
         }
-    });
+    }
 }
 
 // ── 클릭 핸들러 ──
 function onSquareClick(row, col) {
     if (gameOver) return;
 
-    const piece = board[row][col];
+    var piece = board[row][col];
 
-    // 이미 선택된 기물이 있고, 이동 가능한 칸을 클릭한 경우
     if (selectedSquare) {
-        const isMove = possibleMoves.some(m => m[0] === row && m[1] === col);
+        var isMove = false;
+        for (var m = 0; m < possibleMoves.length; m++) {
+            if (possibleMoves[m][0] === row && possibleMoves[m][1] === col) {
+                isMove = true;
+                break;
+            }
+        }
         if (isMove) {
-            const movingPiece = board[selectedSquare[0]][selectedSquare[1]];
-            // 프로모션 체크
+            var movingPiece = board[selectedSquare[0]][selectedSquare[1]];
             if (movingPiece.toUpperCase() === 'P' && (row === 0 || row === 7)) {
                 showPromotionModal(selectedSquare[0], selectedSquare[1], row, col);
             } else {
@@ -561,7 +655,6 @@ function onSquareClick(row, col) {
         }
     }
 
-    // 자기 기물 선택
     if (piece && pieceColor(piece) === currentTurn) {
         selectedSquare = [row, col];
         possibleMoves = legalMoves(row, col);
@@ -575,25 +668,27 @@ function onSquareClick(row, col) {
 
 // ── 프로모션 모달 ──
 function showPromotionModal(fromRow, fromCol, toRow, toCol) {
-    const modal = document.getElementById('promotion-modal');
-    const choices = document.getElementById('promotion-choices');
-    const color = currentTurn;
-    const pieces = color === 'white' ? ['Q','R','B','N'] : ['q','r','b','n'];
-    const icons = color === 'white' ? ['♕','♖','♗','♘'] : ['♛','♜','♝','♞'];
+    var modal = document.getElementById('promotion-modal');
+    var choices = document.getElementById('promotion-choices');
+    var color = currentTurn;
+    var pieces = color === 'white' ? ['Q','R','B','N'] : ['q','r','b','n'];
+    var icons = color === 'white' ? ['♕','♖','♗','♘'] : ['♛','♜','♝','♞'];
 
     choices.innerHTML = '';
-    pieces.forEach((p, i) => {
-        const btn = document.createElement('div');
-        btn.className = 'promo-btn';
-        btn.textContent = icons[i];
-        btn.addEventListener('click', () => {
-            modal.classList.remove('active');
-            executeMove(fromRow, fromCol, toRow, toCol, p);
-            selectedSquare = null;
-            possibleMoves = [];
-        });
-        choices.appendChild(btn);
-    });
+    for (var i = 0; i < pieces.length; i++) {
+        (function(p, icon) {
+            var btn = document.createElement('div');
+            btn.className = 'promo-btn';
+            btn.textContent = icon;
+            btn.addEventListener('click', function() {
+                modal.classList.remove('active');
+                executeMove(fromRow, fromCol, toRow, toCol, p);
+                selectedSquare = null;
+                possibleMoves = [];
+            });
+            choices.appendChild(btn);
+        })(pieces[i], icons[i]);
+    }
 
     modal.classList.add('active');
 }
@@ -607,45 +702,71 @@ function showGameOver(title, message) {
 
 // ── UI 업데이트 ──
 function updateUI() {
-    // 턴 표시
-    const statusEl = document.getElementById('status');
+    var statusEl = document.getElementById('status');
     if (!gameOver) {
-        const turnText = currentTurn === 'white' ? '⚪ 백의 차례입니다' : '⚫ 흑의 차례입니다';
-        const checkText = isInCheck(board, currentTurn) ? ' (체크!)' : '';
-        statusEl.textContent = turnText + checkText;
-        if (isInCheck(board, currentTurn)) statusEl.style.color = '#ff6b6b';
-        else statusEl.style.color = '';
+        var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
+        var icon = currentTurn === 'white' ? '⚪' : '⚫';
+        var checkText = isInCheck(board, currentTurn) ? ' ⚠️ 체크!' : '';
+        statusEl.textContent = icon + ' ' + name + '의 차례' + checkText;
+        statusEl.style.color = isInCheck(board, currentTurn) ? '#ff6b6b' : '';
     }
 
-    // 턴 인디케이터
     document.getElementById('white-turn').className = 'turn-indicator' + (currentTurn === 'white' ? ' active' : '');
     document.getElementById('black-turn').className = 'turn-indicator' + (currentTurn === 'black' ? ' active' : '');
 
-    // 잡힌 기물
-    const pieceOrder = { 'q': 0, 'r': 1, 'b': 2, 'n': 3, 'p': 4, 'Q': 0, 'R': 1, 'B': 2, 'N': 3, 'P': 4 };
-    document.getElementById('white-captured').textContent =
-        [...capturedByWhite].sort((a, b) => pieceOrder[a] - pieceOrder[b]).map(p => PIECES[p]).join('');
-    document.getElementById('black-captured').textContent =
-        [...capturedByBlack].sort((a, b) => pieceOrder[a] - pieceOrder[b]).map(p => PIECES[p]).join('');
+    var pieceOrder = { 'q':0,'r':1,'b':2,'n':3,'p':4,'Q':0,'R':1,'B':2,'N':3,'P':4 };
+    var sortedWhite = capturedByWhite.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
+    var sortedBlack = capturedByBlack.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
 
-    // 타이머
+    document.getElementById('white-captured').textContent = sortedWhite.map(function(p) { return PIECES[p]; }).join('');
+    document.getElementById('black-captured').textContent = sortedBlack.map(function(p) { return PIECES[p]; }).join('');
+
     updateTimerDisplay();
 }
 
 // ── 타이머 ──
+function formatTime(totalSeconds) {
+    if (totalSeconds >= 3600) {
+        var h = Math.floor(totalSeconds / 3600);
+        var m = Math.floor((totalSeconds % 3600) / 60);
+        var s = totalSeconds % 60;
+        return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+    var m = Math.floor(totalSeconds / 60);
+    var s = totalSeconds % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
 function updateTimerDisplay() {
-    const formatTime = (seconds) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
-    document.getElementById('white-timer').textContent = formatTime(whiteTime);
-    document.getElementById('black-timer').textContent = formatTime(blackTime);
+    var whiteTimerEl = document.getElementById('white-timer');
+    var blackTimerEl = document.getElementById('black-timer');
+
+    if (gameSetting.unlimited) {
+        whiteTimerEl.textContent = '∞';
+        blackTimerEl.textContent = '∞';
+        whiteTimerEl.classList.add('no-limit');
+        blackTimerEl.classList.add('no-limit');
+        whiteTimerEl.classList.remove('low-time');
+        blackTimerEl.classList.remove('low-time');
+    } else {
+        whiteTimerEl.textContent = formatTime(whiteTime);
+        blackTimerEl.textContent = formatTime(blackTime);
+        whiteTimerEl.classList.remove('no-limit');
+        blackTimerEl.classList.remove('no-limit');
+
+        if (whiteTime <= 30 && whiteTime > 0) whiteTimerEl.classList.add('low-time');
+        else whiteTimerEl.classList.remove('low-time');
+
+        if (blackTime <= 30 && blackTime > 0) blackTimerEl.classList.add('low-time');
+        else blackTimerEl.classList.remove('low-time');
+    }
 }
 
 function startTimer() {
     stopTimer();
-    timerInterval = setInterval(() => {
+    if (gameSetting.unlimited) return;
+
+    timerInterval = setInterval(function() {
         if (gameOver) { stopTimer(); return; }
         if (currentTurn === 'white') {
             whiteTime--;
@@ -653,7 +774,8 @@ function startTimer() {
                 whiteTime = 0;
                 gameOver = true;
                 stopTimer();
-                showGameOver('시간 초과! ⏰', '흑의 승리입니다!');
+                showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!');
+                renderBoard();
             }
         } else {
             blackTime--;
@@ -661,7 +783,8 @@ function startTimer() {
                 blackTime = 0;
                 gameOver = true;
                 stopTimer();
-                showGameOver('시간 초과! ⏰', '백의 승리입니다!');
+                showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!');
+                renderBoard();
             }
         }
         updateTimerDisplay();
@@ -675,18 +798,17 @@ function stopTimer() {
 // ── 되돌리기 ──
 function undoMove() {
     if (boardHistory.length === 0) return;
-    const prevState = boardHistory.pop();
+    var prevState = boardHistory.pop();
     restoreState(prevState);
 
-    // 기보에서 마지막 수 제거
     if (moveHistory.length > 0) {
-        const lastMove = moveHistory.pop();
-        const moveList = document.getElementById('move-list');
+        var lastMove = moveHistory.pop();
+        var moveList = document.getElementById('move-list');
         if (lastMove.color === 'white') {
-            moveList.removeChild(moveList.lastChild);
+            if (moveList.lastChild) moveList.removeChild(moveList.lastChild);
         } else {
-            const entries = moveList.querySelectorAll('.move-entry');
-            const last = entries[entries.length - 1];
+            var entries = moveList.querySelectorAll('.move-entry');
+            var last = entries[entries.length - 1];
             if (last) last.querySelector('.move-black').textContent = '';
         }
     }
@@ -695,6 +817,9 @@ function undoMove() {
     possibleMoves = [];
     gameOver = false;
     document.getElementById('gameover-modal').classList.remove('active');
+
+    if (!gameSetting.unlimited && firstMoveMade) startTimer();
+
     renderBoard();
     updateUI();
 }
@@ -705,9 +830,9 @@ function flipBoard() {
     renderBoard();
 }
 
-// ── 새 게임 ──
-function newGame() {
-    board = INITIAL_BOARD.map(row => [...row]);
+// ── 게임 초기화 ──
+function initGame() {
+    board = INITIAL_BOARD.map(function(row) { return row.slice(); });
     currentTurn = 'white';
     selectedSquare = null;
     possibleMoves = [];
@@ -717,25 +842,52 @@ function newGame() {
     enPassantTarget = null;
     halfMoveClock = 0;
     fullMoveNumber = 1;
-    whiteTime = 600;
-    blackTime = 600;
     gameOver = false;
     capturedByWhite = [];
     capturedByBlack = [];
     lastMoveFrom = null;
     lastMoveTo = null;
+    firstMoveMade = false;
+
+    if (gameSetting.unlimited) {
+        whiteTime = 0;
+        blackTime = 0;
+    } else {
+        whiteTime = gameSetting.minutes * 60;
+        blackTime = gameSetting.minutes * 60;
+    }
+
+    document.getElementById('display-white-name').textContent = gameSetting.whiteName;
+    document.getElementById('display-black-name').textContent = gameSetting.blackName;
+
+    var whiteIncBadge = document.getElementById('white-increment-badge');
+    var blackIncBadge = document.getElementById('black-increment-badge');
+    if (gameSetting.increment > 0) {
+        whiteIncBadge.textContent = '+' + gameSetting.increment + 's';
+        blackIncBadge.textContent = '+' + gameSetting.increment + 's';
+        whiteIncBadge.style.display = 'inline-block';
+        blackIncBadge.style.display = 'inline-block';
+    } else {
+        whiteIncBadge.style.display = 'none';
+        blackIncBadge.style.display = 'none';
+    }
 
     document.getElementById('move-list').innerHTML = '';
     document.getElementById('gameover-modal').classList.remove('active');
     document.getElementById('promotion-modal').classList.remove('active');
 
     stopTimer();
-    startTimer();
     renderBoard();
     updateUI();
 }
 
-// ── 초기화 ──
-window.addEventListener('DOMContentLoaded', () => {
-    newGame();
+// ── 재시작 ──
+function restartGame() {
+    document.getElementById('gameover-modal').classList.remove('active');
+    initGame();
+}
+
+// ── 페이지 로드 ──
+window.addEventListener('DOMContentLoaded', function() {
+    updateTimeSummary();
 });
