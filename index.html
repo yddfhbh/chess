@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>♟️ 온라인 체스 게임</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 사이드바 -->
+        <aside class="sidebar">
+            <h1>♟️ 체스 게임</h1>
+            <div class="game-info">
+                <div class="player-card black-player">
+                    <div class="player-icon">♚</div>
+                    <div class="player-details">
+                        <span class="player-name">흑 (Black)</span>
+                        <div class="timer" id="black-timer">10:00</div>
+                    </div>
+                    <div class="turn-indicator" id="black-turn"></div>
+                </div>
+
+                <div class="vs-badge">VS</div>
+
+                <div class="player-card white-player">
+                    <div class="player-icon">♔</div>
+                    <div class="player-details">
+                        <span class="player-name">백 (White)</span>
+                        <div class="timer" id="white-timer">10:00</div>
+                    </div>
+                    <div class="turn-indicator active" id="white-turn"></div>
+                </div>
+            </div>
+
+            <div class="status-box">
+                <div id="status">⚪ 백의 차례입니다</div>
+            </div>
+
+            <div class="captured-pieces">
+                <h3>잡힌 기물</h3>
+                <div class="captured-group">
+                    <span class="captured-label">백이 잡은:</span>
+                    <div id="white-captured" class="captured-list"></div>
+                </div>
+                <div class="captured-group">
+                    <span class="captured-label">흑이 잡은:</span>
+                    <div id="black-captured" class="captured-list"></div>
+                </div>
+            </div>
+
+            <div class="move-history">
+                <h3>📜 기보</h3>
+                <div id="move-list" class="move-list"></div>
+            </div>
+
+            <div class="controls">
+                <button id="new-game-btn" onclick="newGame()">🔄 새 게임</button>
+                <button id="undo-btn" onclick="undoMove()">↩️ 되돌리기</button>
+                <button id="flip-btn" onclick="flipBoard()">🔃 보드 뒤집기</button>
+            </div>
+        </aside>
+
+        <!-- 체스 보드 -->
+        <main class="board-area">
+            <div class="rank-labels top" id="rank-labels-top"></div>
+            <div class="board-wrapper">
+                <div class="file-labels left" id="file-labels-left"></div>
+                <div id="chessboard" class="chessboard"></div>
+                <div class="file-labels right" id="file-labels-right"></div>
+            </div>
+            <div class="rank-labels bottom" id="rank-labels-bottom"></div>
+        </main>
+    </div>
+
+    <!-- 프로모션 모달 -->
+    <div id="promotion-modal" class="modal">
+        <div class="modal-content">
+            <h2>프로모션! 기물을 선택하세요</h2>
+            <div class="promotion-choices" id="promotion-choices"></div>
+        </div>
+    </div>
+
+    <!-- 게임 종료 모달 -->
+    <div id="gameover-modal" class="modal">
+        <div class="modal-content gameover">
+            <h2 id="gameover-title">게임 종료!</h2>
+            <p id="gameover-message"></p>
+            <button onclick="newGame()">🔄 새 게임 시작</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
