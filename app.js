@@ -560,6 +560,26 @@ function rebuildMoveListFromHistory() {
 }
 
 function getOnlineGameOverTitle() {
+    return getGameOverDisplayInfo().title;
+}
+
+function getOnlineGameOverMessage() {
+    return getGameOverDisplayInfo().message;
+}
+
+function getWinnerColorFromResult(result) {
+    if (result === '1-0') return 'white';
+    if (result === '0-1') return 'black';
+    return null;
+}
+
+function getViewerColorForResult() {
+    if (isOnlineMode()) return onlineState.playerColor;
+    if (gameSetting.mode === 'ai') return gameSetting.playerColor;
+    return null;
+}
+
+function getDefaultGameOverTitle() {
     if (finalGameTermination === '체크메이트') return '체크메이트! 🏆';
     if (finalGameTermination === '스테일메이트') return '스테일메이트!';
     if (finalGameTermination === '기물 부족') return '기물 부족!';
@@ -570,13 +590,52 @@ function getOnlineGameOverTitle() {
     return '게임 종료';
 }
 
-function getOnlineGameOverMessage() {
-    if (finalGameResult === '1-0' || finalGameResult === '0-1') {
-        var winnerName = finalGameResult === '1-0' ? gameSetting.whiteName : gameSetting.blackName;
-        return winnerName + '의 승리입니다!';
+function getPerspectiveGameOverMessage(outcome, reasonText) {
+    if (outcome === 'win') {
+        if (reasonText === '기권') return '상대가 기권하여 승리했습니다!';
+        if (reasonText === '시간 초과') return '상대의 시간 초과로 승리했습니다!';
+        if (reasonText === '체크메이트') return '체크메이트로 승리했습니다!';
+        return '승리했습니다!';
     }
-    if (finalGameResult === '1/2-1/2') return '무승부입니다.';
-    return finalGameTermination || '게임이 종료되었습니다.';
+    if (outcome === 'lose') {
+        if (reasonText === '기권') return '기권하여 패배했습니다.';
+        if (reasonText === '시간 초과') return '시간 초과로 패배했습니다.';
+        if (reasonText === '체크메이트') return '체크메이트로 패배했습니다.';
+        return '패배했습니다.';
+    }
+    return '';
+}
+
+function getGameOverDisplayInfo() {
+    var title = getDefaultGameOverTitle();
+
+    if (finalGameResult === '1/2-1/2') {
+        return { title: title, message: '무승부입니다.' };
+    }
+
+    var winnerColor = getWinnerColorFromResult(finalGameResult);
+    if (!winnerColor) {
+        return { title: title, message: finalGameTermination || '게임이 종료되었습니다.' };
+    }
+
+    var viewerColor = getViewerColorForResult();
+    if (viewerColor === 'white' || viewerColor === 'black') {
+        var outcome = viewerColor === winnerColor ? 'win' : 'lose';
+        return {
+            title: outcome === 'win' ? '승리!' : '패배',
+            message: getPerspectiveGameOverMessage(outcome, finalGameTermination)
+        };
+    }
+
+    return {
+        title: title,
+        message: getWinnerNameByColor(winnerColor) + '의 승리입니다!'
+    };
+}
+
+function showResolvedGameOver() {
+    var display = getGameOverDisplayInfo();
+    showGameOver(display.title, display.message);
 }
 
 function getOnlinePresenceField(color) {
@@ -674,7 +733,7 @@ function applyOnlineGameState(serializedState) {
     renderBoard();
     updateUI();
     if (gameOver) {
-        showGameOver(getOnlineGameOverTitle(), getOnlineGameOverMessage());
+        showResolvedGameOver();
     } else if (!gameSetting.unlimited && isLocalOnlineTurn()) {
         startTimer();
     }
@@ -1599,7 +1658,7 @@ function applyResignationOutcome(loserColor) {
     setGameConclusion(getResultByWinnerColor(winnerColor), '기권');
     renderBoard();
     updateUI();
-    showGameOver('기권', getWinnerNameByColor(winnerColor) + '의 승리입니다!');
+    showResolvedGameOver();
 }
 
 function setResignModalError(message) {
@@ -1931,14 +1990,13 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     if (!hasLegal) {
         gameOver = true; stopTimer();
         setGameConclusion(inCheck ? (color === 'white' ? '1-0' : '0-1') : '1/2-1/2', inCheck ? '체크메이트' : '스테일메이트');
-        if (inCheck) { showGameOver('체크메이트! 🏆', (color === 'white' ? gameSetting.whiteName : gameSetting.blackName) + '의 승리입니다!'); }
-        else { showGameOver('스테일메이트!', '무승부입니다.'); }
+        showResolvedGameOver();
     } else if (isInsufficientMaterial()) {
         setGameConclusion('1/2-1/2', '기물 부족');
-        gameOver = true; stopTimer(); showGameOver('기물 부족!', '무승부입니다.');
+        gameOver = true; stopTimer(); showResolvedGameOver();
     } else if (halfMoveClock >= 100) {
         setGameConclusion('1/2-1/2', '50수 규칙');
-        gameOver = true; stopTimer(); showGameOver('50수 규칙!', '무승부입니다.');
+        gameOver = true; stopTimer(); showResolvedGameOver();
     }
     turnStartedAt = gameOver ? null : Date.now();
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
@@ -2532,10 +2590,10 @@ function startTimer() {
         if (isOnlineMode() && !isLocalOnlineTurn()) return;
         if (currentTurn === 'white') {
             whiteTime--;
-            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; setGameConclusion('0-1', '시간 초과'); turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
+            if (whiteTime <= 0) { whiteTime = 0; gameOver = true; setGameConclusion('0-1', '시간 초과'); turnStartedAt = null; stopTimer(); showResolvedGameOver(); renderBoard(); }
         } else {
             blackTime--;
-            if (blackTime <= 0) { blackTime = 0; gameOver = true; setGameConclusion('1-0', '시간 초과'); turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
+            if (blackTime <= 0) { blackTime = 0; gameOver = true; setGameConclusion('1-0', '시간 초과'); turnStartedAt = null; stopTimer(); showResolvedGameOver(); renderBoard(); }
         }
         updateTimerDisplay();
         if (isOnlineMode() && !onlineState.applyingRemoteState) syncOnlineGameState(gameOver ? 'finish' : 'tick');
