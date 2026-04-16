@@ -61,6 +61,9 @@ var lastMoveFrom = null;
 var lastMoveTo = null;
 var firstMoveMade = false;
 var dragState = null;
+var turnStartedAt = null;
+var gameStartedAt = null;
+var finalGameResult = '*';
 
 // ★ ============================================================
 //  Stockfish WASM 엔진 관련 변수
