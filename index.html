@@ -29,7 +29,6 @@
     --board-lastmove: rgba(255, 255, 0, 0.25);
     --board-check: rgba(255, 0, 0, 0.55);
 
-    /* ★ 보드 크기: 뷰포트 높이 기반 동적 계산 */
     --sq-size: calc((100vh - 80px) / 8);
     --board-size: calc(var(--sq-size) * 8);
 }
@@ -44,9 +43,6 @@ body {
     overflow-x: hidden;
 }
 
-/* ============================================
-   화면 전환
-   ============================================ */
 .screen { display: none; }
 .screen.active { display: block; }
 
@@ -96,7 +92,6 @@ body {
     color: var(--gold);
 }
 
-/* 게임 모드 */
 .mode-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -132,6 +127,124 @@ body {
     cursor: not-allowed;
 }
 
+/* ★ AI 설정 섹션 */
+.ai-settings {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+    display: none;
+}
+
+.ai-settings.visible {
+    display: block;
+}
+
+.ai-settings h3 {
+    font-size: 0.95em;
+    color: var(--accent);
+    margin-bottom: 12px;
+}
+
+.ai-color-select {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.ai-color-btn {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    font-size: 0.9em;
+}
+
+.ai-color-btn.active {
+    border-color: var(--gold);
+    background: rgba(240, 208, 96, 0.1);
+    color: var(--gold);
+}
+
+.ai-color-btn:hover {
+    border-color: var(--accent);
+}
+
+.ai-level-select {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.ai-level-btn {
+    padding: 10px 6px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    font-size: 0.85em;
+}
+
+.ai-level-btn.active {
+    border-color: var(--gold);
+    background: rgba(240, 208, 96, 0.1);
+    color: var(--gold);
+}
+
+.ai-level-btn:hover {
+    border-color: var(--accent);
+}
+
+.ai-level-btn .level-num {
+    font-size: 1.3em;
+    font-weight: 700;
+    display: block;
+}
+
+.ai-level-btn .level-label {
+    font-size: 0.7em;
+    color: var(--text-secondary);
+}
+
+/* ★ AI 상태 표시 */
+.ai-thinking-indicator {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: rgba(79, 195, 247, 0.1);
+    border: 1px solid rgba(79, 195, 247, 0.3);
+    border-radius: 8px;
+    font-size: 0.85em;
+    color: var(--accent);
+    margin-top: 6px;
+}
+
+.ai-thinking-indicator.visible {
+    display: flex;
+}
+
+.ai-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(79, 195, 247, 0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 /* 시간 프리셋 */
 .time-presets {
     display: grid;
@@ -157,7 +270,6 @@ body {
 .preset-btn .time-value { font-size: 1.3em; font-weight: 700; display: block; }
 .preset-btn .time-label { font-size: 0.75em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
 
-/* 커스텀 시간 */
 .custom-time {
     display: flex;
     justify-content: center;
@@ -213,7 +325,6 @@ body {
     font-size: 0.9em;
 }
 
-/* 플레이어 이름 */
 .player-inputs {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -242,7 +353,6 @@ body {
     border-color: var(--accent);
 }
 
-/* 시작 버튼 */
 .start-btn {
     display: block;
     width: 100%;
@@ -264,8 +374,41 @@ body {
     box-shadow: 0 8px 25px rgba(240, 208, 96, 0.3);
 }
 
+/* ★ 엔진 로딩 오버레이 */
+.engine-loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 20px;
+    backdrop-filter: blur(4px);
+}
+
+.engine-loading-overlay.active {
+    display: flex;
+}
+
+.engine-loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(79, 195, 247, 0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.engine-loading-text {
+    color: var(--accent);
+    font-size: 1.1em;
+    text-align: center;
+}
+
 /* ============================================
-   게임 화면 ★ 대폭 수정
+   게임 화면
    ============================================ */
 #game-screen.active {
     display: flex;
@@ -286,7 +429,6 @@ body {
     height: 100%;
 }
 
-/* 보드 영역 */
 .board-area {
     display: flex;
     flex-direction: column;
@@ -370,7 +512,6 @@ body {
     border-radius: 50%;
 }
 
-/* SVG 기물 */
 .piece-svg {
     width: 85%;
     height: 85%;
@@ -391,7 +532,6 @@ body {
     filter: drop-shadow(0 0 8px rgba(0, 150, 255, 0.6)) drop-shadow(1px 2px 3px rgba(0, 0, 0, 0.4));
 }
 
-/* 상태 바 */
 .status-bar {
     margin-top: 8px;
     padding: 6px 20px;
@@ -402,7 +542,6 @@ body {
     min-width: 300px;
 }
 
-/* 사이드 패널 ★ 높이를 보드에 맞춤 */
 .side-panel {
     width: 300px;
     display: flex;
@@ -413,7 +552,6 @@ body {
     flex-shrink: 0;
 }
 
-/* 플레이어 카드 */
 .player-card {
     display: flex;
     align-items: center;
@@ -487,7 +625,6 @@ body {
 
 .captured-piece-svg svg { width: 100%; height: 100%; }
 
-/* 기보 ★ flex:1로 남은 공간 채움 */
 .move-history {
     background: var(--bg-card);
     border-radius: 12px;
@@ -530,7 +667,6 @@ body {
 .move-number { color: var(--text-secondary); font-size: 0.85em; }
 .move-white, .move-black { padding: 2px 6px; }
 
-/* 컨트롤 버튼 */
 .controls {
     display: flex;
     gap: 8px;
@@ -615,7 +751,6 @@ body {
 
 .modal-btn:hover { transform: translateY(-2px); }
 
-/* 프로모션 모달 */
 #promotion-choices {
     display: flex;
     gap: 15px;
@@ -652,26 +787,17 @@ body {
 
 .promo-svg svg { width: 100%; height: 100%; }
 
-/* ============================================
-   애니메이션
-   ============================================ */
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
 
-/* ============================================
-   반응형 ★ 대폭 수정
-   ============================================ */
-
-/* 화면이 넓지만 높이가 낮은 경우 (와이드 모니터) */
 @media (max-height: 700px) {
     :root {
         --sq-size: calc((100vh - 60px) / 8);
     }
 }
 
-/* 태블릿 세로 / 좁은 화면 */
 @media (max-width: 1000px) {
     .game-container {
         flex-direction: column;
@@ -705,7 +831,6 @@ body {
     }
 }
 
-/* 모바일 */
 @media (max-width: 500px) {
     :root {
         --sq-size: calc((100vw - 50px) / 8);
@@ -715,6 +840,7 @@ body {
     .mode-grid { grid-template-columns: 1fr; }
     .time-presets { grid-template-columns: repeat(3, 1fr); }
     .player-inputs { grid-template-columns: 1fr; }
+    .ai-level-select { grid-template-columns: repeat(3, 1fr); }
     
     .side-panel { width: 100%; }
     
@@ -745,15 +871,45 @@ body {
                     <span class="mode-label">로컬 PvP</span>
                     <span class="mode-desc">한 화면에서 두 명이 플레이</span>
                 </div>
-                <div class="mode-btn disabled" data-mode="ai">
+                <!-- ★ AI 모드 활성화 -->
+                <div class="mode-btn" data-mode="ai" onclick="selectMode('ai')">
                     <span class="mode-icon">🤖</span>
                     <span class="mode-label">vs AI</span>
-                    <span class="mode-desc">준비 중...</span>
+                    <span class="mode-desc">Stockfish 18 엔진</span>
                 </div>
                 <div class="mode-btn disabled" data-mode="online">
                     <span class="mode-icon">🌐</span>
                     <span class="mode-label">온라인 PvP</span>
                     <span class="mode-desc">준비 중...</span>
+                </div>
+            </div>
+
+            <!-- ★ AI 설정 패널 -->
+            <div class="ai-settings" id="ai-settings">
+                <h3>🤖 AI 설정</h3>
+                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">내 색상 선택</label>
+                <div class="ai-color-select">
+                    <div class="ai-color-btn active" data-color="white" onclick="selectAIColor('white')">⬜ 백 (선공)</div>
+                    <div class="ai-color-btn" data-color="black" onclick="selectAIColor('black')">⬛ 흑 (후공)</div>
+                    <div class="ai-color-btn" data-color="random" onclick="selectAIColor('random')">🎲 랜덤</div>
+                </div>
+                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">AI 난이도 (Skill Level)</label>
+                <div class="ai-level-select">
+                    <div class="ai-level-btn" data-level="1" onclick="selectAILevel(1)">
+                        <span class="level-num">1</span><span class="level-label">입문</span>
+                    </div>
+                    <div class="ai-level-btn" data-level="3" onclick="selectAILevel(3)">
+                        <span class="level-num">3</span><span class="level-label">초급</span>
+                    </div>
+                    <div class="ai-level-btn" data-level="5" onclick="selectAILevel(5)">
+                        <span class="level-num">5</span><span class="level-label">중급</span>
+                    </div>
+                    <div class="ai-level-btn active" data-level="10" onclick="selectAILevel(10)">
+                        <span class="level-num">10</span><span class="level-label">상급</span>
+                    </div>
+                    <div class="ai-level-btn" data-level="20" onclick="selectAILevel(20)">
+                        <span class="level-num">20</span><span class="level-label">최강</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -850,7 +1006,6 @@ body {
      ============================================ -->
 <div id="game-screen" class="screen">
     <div class="game-container">
-        <!-- 보드 영역 -->
         <div class="board-area">
             <div class="board-labels-file" id="rank-labels-top"></div>
             <div class="board-wrapper">
@@ -862,11 +1017,14 @@ body {
             <div class="status-bar">
                 <span id="status">⚪ 백의 차례</span>
             </div>
+            <!-- ★ AI 생각 중 표시 -->
+            <div class="ai-thinking-indicator" id="ai-thinking">
+                <div class="ai-spinner"></div>
+                <span>🤖 AI가 생각하고 있습니다...</span>
+            </div>
         </div>
 
-        <!-- 사이드 패널 -->
         <div class="side-panel">
-            <!-- 흑 플레이어 -->
             <div class="player-card">
                 <div class="player-avatar black-avatar">⚫</div>
                 <div class="player-info">
@@ -879,13 +1037,11 @@ body {
                 </div>
             </div>
 
-            <!-- 기보 -->
             <div class="move-history">
                 <h3>📋 기보</h3>
                 <div id="move-list"></div>
             </div>
 
-            <!-- 백 플레이어 -->
             <div class="player-card">
                 <div class="player-avatar white-avatar">⚪</div>
                 <div class="player-info">
@@ -898,7 +1054,6 @@ body {
                 </div>
             </div>
 
-            <!-- 컨트롤 -->
             <div class="controls">
                 <button class="ctrl-btn" onclick="undoMove()">⏪ 되돌리기</button>
                 <button class="ctrl-btn" onclick="flipBoard()">🔄 뒤집기</button>
@@ -933,9 +1088,18 @@ body {
     </div>
 </div>
 
+<!-- ★ 엔진 로딩 오버레이 -->
+<div id="engine-loading" class="engine-loading-overlay">
+    <div class="engine-loading-spinner"></div>
+    <div class="engine-loading-text">
+        🤖 Stockfish 18 엔진을 로딩하고 있습니다...<br>
+        <span style="font-size:0.85em; opacity:0.7;">처음 로딩 시 시간이 걸릴 수 있습니다.</span>
+    </div>
+</div>
+
 <script>
 // ============================================================
-//  ♟️ 체스 게임 엔진 (순수 JavaScript) - SVG 기물 버전
+//  ♟️ 체스 게임 엔진 (순수 JavaScript) - SVG 기물 + AI 모드
 // ============================================================
 
 // ── SVG 기물 이미지 (인라인) ──
@@ -954,7 +1118,6 @@ var PIECE_SVG = {
     p: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03C15.41 27.09 11 31.58 11 39.5H34c0-7.92-4.41-12.41-7.41-13.47C28.06 24.84 29 23.03 29 21c0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#000" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg>'
 };
 
-// ── 초기 보드 배치 ──
 var INITIAL_BOARD = [
     ['r','n','b','q','k','b','n','r'],
     ['p','p','p','p','p','p','p','p'],
@@ -966,13 +1129,14 @@ var INITIAL_BOARD = [
     ['R','N','B','Q','K','B','N','R']
 ];
 
-// ── 게임 설정 ──
 var gameSetting = {
     mode: 'pvp', minutes: 5, increment: 0,
-    whiteName: '백 (White)', blackName: '흑 (Black)', unlimited: false
+    whiteName: '백 (White)', blackName: '흑 (Black)', unlimited: false,
+    aiColor: 'black',       // ★ AI가 맡는 색상
+    aiLevel: 10,            // ★ AI 난이도 (Stockfish Skill Level 0~20)
+    playerColor: 'white'    // ★ 플레이어가 맡는 색상
 };
 
-// ── 게임 상태 ──
 var board = [];
 var currentTurn = 'white';
 var selectedSquare = null;
@@ -994,14 +1158,210 @@ var lastMoveFrom = null;
 var lastMoveTo = null;
 var firstMoveMade = false;
 
+// ★ ============================================================
+//  Stockfish WASM 엔진 관련 변수
+// ★ ============================================================
+var stockfishWorker = null;
+var engineReady = false;
+var aiThinking = false;
+
+// ★ Stockfish 엔진 초기화
+function initEngine() {
+    return new Promise(function(resolve, reject) {
+        try {
+            stockfishWorker = new Worker('stockfish-18-lite-single.js');
+            
+            stockfishWorker.onmessage = function(e) {
+                var line = e.data;
+                // console.log('SF:', line); // 디버그용
+                
+                if (line === 'uciok') {
+                    engineReady = true;
+                    // Skill Level 설정
+                    stockfishWorker.postMessage('setoption name Skill Level value ' + gameSetting.aiLevel);
+                    stockfishWorker.postMessage('isready');
+                }
+                
+                if (line === 'readyok') {
+                    resolve();
+                }
+                
+                // bestmove 파싱
+                if (typeof line === 'string' && line.indexOf('bestmove') === 0) {
+                    var parts = line.split(' ');
+                    var bestMove = parts[1];
+                    if (bestMove && bestMove !== '(none)') {
+                        handleEngineMove(bestMove);
+                    }
+                }
+            };
+            
+            stockfishWorker.onerror = function(err) {
+                console.error('Stockfish Worker Error:', err);
+                reject(err);
+            };
+            
+            // UCI 프로토콜 시작
+            stockfishWorker.postMessage('uci');
+            
+        } catch (err) {
+            console.error('엔진 초기화 실패:', err);
+            reject(err);
+        }
+    });
+}
+
+// ★ 현재 보드 상태를 FEN 문자열로 변환
+function boardToFEN() {
+    var fen = '';
+    for (var r = 0; r < 8; r++) {
+        var empty = 0;
+        for (var c = 0; c < 8; c++) {
+            var piece = board[r][c];
+            if (piece === '') {
+                empty++;
+            } else {
+                if (empty > 0) { fen += empty; empty = 0; }
+                fen += piece;
+            }
+        }
+        if (empty > 0) fen += empty;
+        if (r < 7) fen += '/';
+    }
+    
+    // 턴
+    fen += ' ' + (currentTurn === 'white' ? 'w' : 'b');
+    
+    // 캐슬링
+    var castleStr = '';
+    if (castlingRights.K) castleStr += 'K';
+    if (castlingRights.Q) castleStr += 'Q';
+    if (castlingRights.k) castleStr += 'k';
+    if (castlingRights.q) castleStr += 'q';
+    fen += ' ' + (castleStr || '-');
+    
+    // 앙파상
+    if (enPassantTarget) {
+        var files = 'abcdefgh';
+        var ranks = '87654321';
+        fen += ' ' + files[enPassantTarget[1]] + ranks[enPassantTarget[0]];
+    } else {
+        fen += ' -';
+    }
+    
+    // 하프무브 클럭 & 풀무브 넘버
+    fen += ' ' + halfMoveClock;
+    fen += ' ' + fullMoveNumber;
+    
+    return fen;
+}
+
+// ★ AI에게 수를 요청
+function requestAIMove() {
+    if (!stockfishWorker || !engineReady || gameOver || aiThinking) return;
+    
+    aiThinking = true;
+    showAIThinking(true);
+    
+    var fen = boardToFEN();
+    
+    // 새 게임 시작 시 position 설정
+    stockfishWorker.postMessage('position fen ' + fen);
+    
+    // 난이도에 따른 탐색 깊이/시간 조절
+    var depth;
+    if (gameSetting.aiLevel <= 1) depth = 1;
+    else if (gameSetting.aiLevel <= 3) depth = 4;
+    else if (gameSetting.aiLevel <= 5) depth = 8;
+    else if (gameSetting.aiLevel <= 10) depth = 12;
+    else depth = 18;
+    
+    stockfishWorker.postMessage('go depth ' + depth);
+}
+
+// ★ 엔진이 반환한 수를 처리
+function handleEngineMove(moveStr) {
+    aiThinking = false;
+    showAIThinking(false);
+    
+    if (gameOver) return;
+    
+    // moveStr 형식: "e2e4", "e7e8q" (프로모션)
+    var files = 'abcdefgh';
+    var ranks = '87654321';
+    
+    var fromCol = files.indexOf(moveStr[0]);
+    var fromRow = ranks.indexOf(moveStr[1]);
+    var toCol = files.indexOf(moveStr[2]);
+    var toRow = ranks.indexOf(moveStr[3]);
+    
+    var promotionPiece = null;
+    if (moveStr.length === 5) {
+        var promChar = moveStr[4];
+        // AI 색상에 맞게 대소문자 결정
+        if (currentTurn === 'white') {
+            promotionPiece = promChar.toUpperCase();
+        } else {
+            promotionPiece = promChar.toLowerCase();
+        }
+    }
+    
+    if (fromRow < 0 || fromCol < 0 || toRow < 0 || toCol < 0) {
+        console.error('잘못된 엔진 수:', moveStr);
+        return;
+    }
+    
+    executeMove(fromRow, fromCol, toRow, toCol, promotionPiece);
+}
+
+// ★ AI 생각 중 표시
+function showAIThinking(show) {
+    var el = document.getElementById('ai-thinking');
+    if (show) el.classList.add('visible');
+    else el.classList.remove('visible');
+}
+
+// ★ AI 턴인지 확인
+function isAITurn() {
+    return gameSetting.mode === 'ai' && currentTurn === gameSetting.aiColor && !gameOver;
+}
+
 // ============================================================
 //  로비 로직
 // ============================================================
 function selectMode(mode) {
-    if (mode !== 'pvp') return;
+    if (mode === 'online') return; // ★ online만 비활성화
     document.querySelectorAll('.mode-btn').forEach(function(btn) { btn.classList.remove('active'); });
     document.querySelector('.mode-btn[data-mode="' + mode + '"]').classList.add('active');
     gameSetting.mode = mode;
+    
+    // ★ AI 설정 패널 토글
+    var aiSettings = document.getElementById('ai-settings');
+    if (mode === 'ai') {
+        aiSettings.classList.add('visible');
+    } else {
+        aiSettings.classList.remove('visible');
+    }
+}
+
+// ★ AI 색상 선택 (플레이어가 선택하는 색상)
+function selectAIColor(color) {
+    document.querySelectorAll('.ai-color-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.querySelector('.ai-color-btn[data-color="' + color + '"]').classList.add('active');
+    
+    if (color === 'random') {
+        gameSetting.playerColor = Math.random() < 0.5 ? 'white' : 'black';
+    } else {
+        gameSetting.playerColor = color;
+    }
+    gameSetting.aiColor = gameSetting.playerColor === 'white' ? 'black' : 'white';
+}
+
+// ★ AI 난이도 선택
+function selectAILevel(level) {
+    document.querySelectorAll('.ai-level-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.querySelector('.ai-level-btn[data-level="' + level + '"]').classList.add('active');
+    gameSetting.aiLevel = level;
 }
 
 function applyPreset(minutes, increment, el) {
@@ -1049,16 +1409,58 @@ function updateTimeSummary() {
     }
 }
 
+// ★ 게임 시작 (AI 모드 시 엔진 로딩 포함)
 function startGame() {
     gameSetting.whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
     gameSetting.blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
-    document.getElementById('lobby-screen').classList.remove('active');
-    document.getElementById('game-screen').classList.add('active');
-    initGame();
+    
+    // ★ AI 모드일 때 이름 자동 설정
+    if (gameSetting.mode === 'ai') {
+        if (gameSetting.aiColor === 'white') {
+            gameSetting.whiteName = '🤖 Stockfish (Lv.' + gameSetting.aiLevel + ')';
+            gameSetting.blackName = document.getElementById('black-name').value.trim() || '플레이어';
+        } else {
+            gameSetting.blackName = '🤖 Stockfish (Lv.' + gameSetting.aiLevel + ')';
+            gameSetting.whiteName = document.getElementById('white-name').value.trim() || '플레이어';
+        }
+        
+        // 엔진 로딩
+        var loadingEl = document.getElementById('engine-loading');
+        loadingEl.classList.add('active');
+        
+        initEngine().then(function() {
+            // Skill Level 재설정
+            stockfishWorker.postMessage('setoption name Skill Level value ' + gameSetting.aiLevel);
+            stockfishWorker.postMessage('ucinewgame');
+            stockfishWorker.postMessage('isready');
+            
+            loadingEl.classList.remove('active');
+            document.getElementById('lobby-screen').classList.remove('active');
+            document.getElementById('game-screen').classList.add('active');
+            initGame();
+        }).catch(function(err) {
+            loadingEl.classList.remove('active');
+            alert('⚠️ Stockfish 엔진 로딩에 실패했습니다.\n\n같은 폴더에 stockfish-18-lite-single.js 와 stockfish-18-lite-single.wasm 파일이 있는지 확인해주세요.\n\n오류: ' + err.message);
+        });
+    } else {
+        document.getElementById('lobby-screen').classList.remove('active');
+        document.getElementById('game-screen').classList.add('active');
+        initGame();
+    }
 }
 
 function backToLobby() {
     stopTimer(); gameOver = true;
+    aiThinking = false;
+    showAIThinking(false);
+    // ★ 엔진 종료
+    if (stockfishWorker) {
+        stockfishWorker.postMessage('stop');
+        stockfishWorker.postMessage('quit');
+        stockfishWorker.terminate();
+        stockfishWorker = null;
+        engineReady = false;
+    }
     document.getElementById('gameover-modal').classList.remove('active');
     document.getElementById('promotion-modal').classList.remove('active');
     document.getElementById('game-screen').classList.remove('active');
@@ -1261,7 +1663,6 @@ function isInsufficientMaterial() {
     return false;
 }
 
-// ── 수 실행 ──
 function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     boardHistory.push(cloneState());
     var piece = board[fromRow][fromCol];
@@ -1341,6 +1742,13 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     }
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
     renderBoard(); updateUI();
+    
+    // ★ AI 턴이면 AI에게 수 요청
+    if (isAITurn()) {
+        setTimeout(function() {
+            requestAIMove();
+        }, 300); // 약간의 딜레이로 자연스러운 느낌
+    }
 }
 
 function addMoveToHistory(notation, color) {
@@ -1359,7 +1767,6 @@ function addMoveToHistory(notation, color) {
     moveList.scrollTop = moveList.scrollHeight;
 }
 
-// ── 보드 렌더링 ──
 function renderBoard() {
     var chessboard = document.getElementById('chessboard');
     chessboard.innerHTML = '';
@@ -1413,6 +1820,9 @@ function renderLabels() {
 
 function onSquareClick(row, col) {
     if (gameOver) return;
+    // ★ AI 턴이면 클릭 무시
+    if (isAITurn() || aiThinking) return;
+    
     var piece = board[row][col];
     if (selectedSquare) {
         var isMove = false;
@@ -1430,6 +1840,8 @@ function onSquareClick(row, col) {
         }
     }
     if (piece && pieceColor(piece) === currentTurn) {
+        // ★ AI 모드에서는 자기 기물만 선택 가능
+        if (gameSetting.mode === 'ai' && pieceColor(piece) === gameSetting.aiColor) return;
         selectedSquare = [row, col]; possibleMoves = legalMoves(row, col);
     } else { selectedSquare = null; possibleMoves = []; }
     renderBoard();
@@ -1494,7 +1906,6 @@ function updateUI() {
     updateTimerDisplay();
 }
 
-// ── 타이머 ──
 function formatTime(totalSeconds) {
     if (totalSeconds >= 3600) {
         var h = Math.floor(totalSeconds / 3600), m = Math.floor((totalSeconds % 3600) / 60), s = totalSeconds % 60;
@@ -1536,16 +1947,31 @@ function startTimer() {
 
 function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
 
+// ★ 되돌리기: AI 모드에서는 AI 수까지 같이 되돌림 (2수)
 function undoMove() {
     if (boardHistory.length === 0) return;
-    var prevState = boardHistory.pop();
-    restoreState(prevState);
-    if (moveHistory.length > 0) {
-        var lastMove = moveHistory.pop();
-        var moveList = document.getElementById('move-list');
-        if (lastMove.color === 'white') { if (moveList.lastChild) moveList.removeChild(moveList.lastChild); }
-        else { var entries = moveList.querySelectorAll('.move-entry'); var last = entries[entries.length - 1]; if (last) last.querySelector('.move-black').textContent = ''; }
+    // ★ AI가 생각 중이면 중단
+    if (aiThinking && stockfishWorker) {
+        stockfishWorker.postMessage('stop');
+        aiThinking = false;
+        showAIThinking(false);
     }
+    
+    // AI 모드에서는 2수 되돌리기 (AI 수 + 내 수)
+    var undoCount = (gameSetting.mode === 'ai' && boardHistory.length >= 2) ? 2 : 1;
+    
+    for (var i = 0; i < undoCount; i++) {
+        if (boardHistory.length === 0) break;
+        var prevState = boardHistory.pop();
+        restoreState(prevState);
+        if (moveHistory.length > 0) {
+            var lastMove = moveHistory.pop();
+            var moveList = document.getElementById('move-list');
+            if (lastMove.color === 'white') { if (moveList.lastChild) moveList.removeChild(moveList.lastChild); }
+            else { var entries = moveList.querySelectorAll('.move-entry'); var last = entries[entries.length - 1]; if (last) last.querySelector('.move-black').textContent = ''; }
+        }
+    }
+    
     selectedSquare = null; possibleMoves = []; gameOver = false;
     document.getElementById('gameover-modal').classList.remove('active');
     if (!gameSetting.unlimited && firstMoveMade) startTimer();
@@ -1562,6 +1988,8 @@ function initGame() {
     enPassantTarget = null; halfMoveClock = 0; fullMoveNumber = 1;
     gameOver = false; capturedByWhite = []; capturedByBlack = [];
     lastMoveFrom = null; lastMoveTo = null; firstMoveMade = false;
+    aiThinking = false;
+    showAIThinking(false);
 
     if (gameSetting.unlimited) { whiteTime = 0; blackTime = 0; }
     else { whiteTime = gameSetting.minutes * 60; blackTime = gameSetting.minutes * 60; }
@@ -1578,10 +2006,41 @@ function initGame() {
     document.getElementById('move-list').innerHTML = '';
     document.getElementById('gameover-modal').classList.remove('active');
     document.getElementById('promotion-modal').classList.remove('active');
-    stopTimer(); renderBoard(); updateUI();
+    stopTimer();
+    
+    // ★ AI 모드: 플레이어가 흑이면 보드 뒤집기
+    if (gameSetting.mode === 'ai' && gameSetting.playerColor === 'black') {
+        isFlipped = true;
+    } else {
+        isFlipped = false;
+    }
+    
+    renderBoard(); updateUI();
+    
+    // ★ AI가 백(선공)이면 바로 AI 수 요청
+    if (gameSetting.mode === 'ai' && gameSetting.aiColor === 'white') {
+        setTimeout(function() {
+            if (stockfishWorker) {
+                stockfishWorker.postMessage('ucinewgame');
+                stockfishWorker.postMessage('isready');
+            }
+            setTimeout(function() {
+                requestAIMove();
+            }, 200);
+        }, 500);
+    } else if (gameSetting.mode === 'ai' && stockfishWorker) {
+        stockfishWorker.postMessage('ucinewgame');
+    }
 }
 
-function restartGame() { document.getElementById('gameover-modal').classList.remove('active'); initGame(); }
+function restartGame() {
+    document.getElementById('gameover-modal').classList.remove('active');
+    if (gameSetting.mode === 'ai' && stockfishWorker) {
+        stockfishWorker.postMessage('stop');
+        stockfishWorker.postMessage('ucinewgame');
+    }
+    initGame();
+}
 
 window.addEventListener('DOMContentLoaded', function() { updateTimeSummary(); });
 </script>
