@@ -85,7 +85,7 @@
                     <input type="text" id="online-name" placeholder="예: 체크메이트왕" maxlength="20">
                 </div>
                 <div class="online-actions">
-                    <button type="button" class="online-btn primary" id="create-room-btn" onclick="createInviteRoom()">방 만들기</button>
+                    <button type="button" class="online-btn primary" id="create-room-btn" onclick="toggleCreateRoomAction()">방 만들기</button>
                     <button type="button" class="online-btn" id="join-room-toggle-btn" onclick="toggleJoinRoomPanel()">방 참가하기</button>
                     <button type="button" class="online-btn" id="random-match-btn" onclick="toggleRandomMatch()">랜덤 매칭</button>
                 </div>
@@ -223,7 +223,10 @@
                         <span class="player-side-label">흑</span>
                         <span id="black-turn" class="turn-indicator"></span>
                     </div>
-                    <div class="player-name" id="display-black-name">흑 (Black)</div>
+                    <div class="player-identity">
+                        <span class="player-name-label">닉네임</span>
+                        <div class="player-name" id="display-black-name">흑 (Black)</div>
+                    </div>
                     <div class="captured-pieces" id="black-captured"></div>
                 </div>
                 <div>
@@ -244,7 +247,10 @@
                         <span class="player-side-label">백</span>
                         <span id="white-turn" class="turn-indicator active"></span>
                     </div>
-                    <div class="player-name" id="display-white-name">백 (White)</div>
+                    <div class="player-identity">
+                        <span class="player-name-label">닉네임</span>
+                        <div class="player-name" id="display-white-name">백 (White)</div>
+                    </div>
                     <div class="captured-pieces" id="white-captured"></div>
                 </div>
                 <div>

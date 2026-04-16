@@ -842,6 +842,17 @@ body {
     letter-spacing: 0.08em;
 }
 
+.player-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.player-name-label {
+    font-size: 0.72em;
+    color: var(--text-secondary);
+}
+
 .player-name {
     font-weight: 600;
     font-size: 0.98em;

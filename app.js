@@ -339,6 +339,16 @@ function setLobbyOnlinePill(id, text) {
     if (el) el.textContent = text;
 }
 
+function isOwnedInviteRoomWaiting() {
+    return !!(
+        onlineState.roomId &&
+        onlineState.roomData &&
+        onlineState.roomData.type === 'invite' &&
+        onlineState.roomData.status === 'waiting' &&
+        onlineState.roomData.hostUid === onlineState.authUid
+    );
+}
+
 function updateOnlineUI() {
     var nickname = getOnlineNickname();
     var authText = nickname ? ('닉네임: ' + nickname) : '닉네임을 입력하세요';
@@ -360,6 +370,7 @@ function updateOnlineUI() {
     var joinBtn = document.getElementById('join-room-btn');
     var canStartOnline = onlineState.authReady && !!nickname;
     var hasActiveGame = !!(onlineState.roomData && onlineState.roomData.status === 'playing');
+    var hasOwnedInviteWaiting = isOwnedInviteRoomWaiting();
     var showInviteRoomInfo = !!(
         onlineState.roomId &&
         onlineState.roomData &&
@@ -370,7 +381,12 @@ function updateOnlineUI() {
     if (roomCode) roomCode.textContent = onlineState.roomId || '------';
     if (copyBtn) copyBtn.style.display = showInviteRoomInfo ? 'inline-block' : 'none';
 
-    if (createBtn) createBtn.disabled = !canStartOnline || hasActiveGame;
+    if (createBtn) {
+        createBtn.disabled = (!canStartOnline && !hasOwnedInviteWaiting) || hasActiveGame;
+        createBtn.textContent = hasOwnedInviteWaiting ? '방 삭제하기' : '방 만들기';
+        createBtn.classList.toggle('primary', !hasOwnedInviteWaiting);
+        createBtn.classList.toggle('danger', hasOwnedInviteWaiting);
+    }
     if (joinToggleBtn) {
         joinToggleBtn.disabled = !canStartOnline || hasActiveGame;
         joinToggleBtn.classList.toggle('active', !!onlineState.showJoinRoomInput && !hasActiveGame);
@@ -823,6 +839,24 @@ function closeJoinRoomPanel() {
     if (!onlineState.showJoinRoomInput) return;
     onlineState.showJoinRoomInput = false;
     updateOnlineUI();
+}
+
+function toggleCreateRoomAction() {
+    if (isOwnedInviteRoomWaiting()) {
+        deleteInviteRoom();
+        return;
+    }
+    createInviteRoom();
+}
+
+function deleteInviteRoom() {
+    if (!isOwnedInviteRoomWaiting()) return Promise.resolve();
+    return cancelOnlineWaiting().then(function() {
+        setLobbyOnlineMessage('방을 삭제했습니다.');
+    }).catch(function(err) {
+        setLobbyOnlineMessage('방 삭제 실패: ' + err.message);
+        throw err;
+    });
 }
 
 function toggleRandomMatch() {
