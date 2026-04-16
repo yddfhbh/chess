@@ -132,6 +132,157 @@ body {
     display: block;
 }
 
+.online-settings {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+    display: none;
+}
+
+.online-settings.visible {
+    display: block;
+}
+
+.online-settings h3 {
+    font-size: 0.95em;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+
+.online-help {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.online-auth-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.online-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(79, 195, 247, 0.14);
+    color: var(--accent);
+    font-size: 0.78em;
+    border: 1px solid rgba(79, 195, 247, 0.25);
+}
+
+.online-pill.secondary {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    border-color: rgba(255,255,255,0.08);
+}
+
+.online-name-row {
+    margin-bottom: 12px;
+}
+
+.online-name-row label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.online-name-row input,
+.online-join-row input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.3);
+    color: var(--text-primary);
+    font-size: 0.95em;
+}
+
+.online-name-row input:focus,
+.online-join-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.online-actions,
+.online-join-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.online-join-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.online-btn {
+    padding: 11px 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.88em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.online-btn:hover {
+    border-color: var(--accent);
+    background: rgba(79, 195, 247, 0.08);
+}
+
+.online-btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border-color: transparent;
+    color: #06141d;
+}
+
+.online-btn.ghost {
+    background: transparent;
+}
+
+.online-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.online-room-box {
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(240, 208, 96, 0.08);
+    border: 1px solid rgba(240, 208, 96, 0.16);
+    margin-bottom: 12px;
+}
+
+.online-room-label {
+    color: var(--text-secondary);
+    font-size: 0.8em;
+    margin-bottom: 6px;
+}
+
+.online-room-code {
+    color: var(--gold);
+    font-size: 1.4em;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+}
+
+.online-status-text {
+    min-height: 20px;
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
 .ai-settings h3 {
     font-size: 0.95em;
     color: var(--accent);
@@ -950,6 +1101,11 @@ body {
     .move-history {
         max-height: 150px;
     }
+
+    .online-actions,
+    .online-join-row {
+        grid-template-columns: 1fr;
+    }
     
     #game-screen.active {
         height: auto;
@@ -969,6 +1125,7 @@ body {
     .player-inputs { grid-template-columns: 1fr; }
     .ai-level-controls { grid-template-columns: 40px 1fr 40px; }
     .ai-level-step { width: 40px; height: 40px; }
+    .online-auth-row { flex-direction: column; }
     
     .side-panel { width: 100%; }
     

@@ -77,6 +77,40 @@ var stockfishWorker = null;
 var engineReady = false;
 var aiThinking = false;
 
+var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCQfoxyy3clAsRTN37Pw8_bvXNAgRXByhk",
+    authDomain: "chess-6f000.firebaseapp.com",
+    databaseURL: "https://chess-6f000-default-rtdb.firebaseio.com",
+    projectId: "chess-6f000",
+    storageBucket: "chess-6f000.firebasestorage.app",
+    messagingSenderId: "413376873387",
+    appId: "1:413376873387:web:b69e4bd2a2c1fd29e3c8ee",
+    measurementId: "G-RN7CHDW6JJ"
+};
+
+var firebaseApp = null;
+var firebaseAuth = null;
+var firebaseDb = null;
+var onlineState = {
+    enabled: false,
+    authReady: false,
+    authUid: null,
+    roomId: null,
+    roomRef: null,
+    roomListener: null,
+    roomData: null,
+    roomStarted: false,
+    playerColor: null,
+    inQueue: false,
+    queueRef: null,
+    assignmentRef: null,
+    assignmentListener: null,
+    gameRevision: -1,
+    applyingRemoteState: false,
+    syncingState: false,
+    lastSyncedStateHash: null
+};
+
 // ★ Stockfish 엔진 초기화
 function initEngine() {
     return new Promise(function(resolve, reject) {
@@ -238,10 +272,558 @@ function isAITurn() {
     return gameSetting.mode === 'ai' && currentTurn === gameSetting.aiColor && !gameOver;
 }
 
+function isOnlineMode() {
+    return gameSetting.mode === 'online';
+}
+
+function getOnlinePlayerColor() {
+    return onlineState.playerColor;
+}
+
+function isLocalOnlineTurn() {
+    return isOnlineMode() && !gameOver && !!onlineState.playerColor && currentTurn === onlineState.playerColor;
+}
+
+function normalizeRoomCode(code) {
+    return String(code || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+}
+
+function generateRoomCode() {
+    var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var code = '';
+    for (var i = 0; i < 6; i++) {
+        code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return code;
+}
+
+function getOnlineNickname() {
+    var input = document.getElementById('online-name');
+    var value = input && input.value ? input.value.trim() : '';
+    return value;
+}
+
+function requireOnlineNickname() {
+    var nickname = getOnlineNickname();
+    if (!nickname) throw new Error('닉네임을 입력해주세요.');
+    return nickname;
+}
+
+function getSelectedTimeSettings() {
+    return {
+        minutes: gameSetting.minutes,
+        increment: gameSetting.increment,
+        unlimited: gameSetting.unlimited
+    };
+}
+
+function getMatchmakingKey() {
+    var settings = getSelectedTimeSettings();
+    if (settings.unlimited) return 'unlimited';
+    return String(settings.minutes) + '_' + String(settings.increment);
+}
+
+function setLobbyOnlineMessage(text) {
+    var el = document.getElementById('online-status-text');
+    if (el) el.textContent = text;
+}
+
+function setLobbyOnlinePill(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+function updateOnlineUI() {
+    var nickname = getOnlineNickname();
+    var authText = nickname ? ('닉네임: ' + nickname) : '닉네임을 입력하세요';
+    setLobbyOnlinePill('online-auth-status', authText);
+
+    var connectionText = onlineState.authReady ? '온라인 준비 완료' : 'Firebase 연결 중...';
+    if (onlineState.roomId && onlineState.roomData && onlineState.roomData.status === 'waiting') connectionText = '방 대기 중';
+    else if (onlineState.roomId && onlineState.roomData && onlineState.roomData.status === 'playing') connectionText = '온라인 대국 중';
+    else if (onlineState.inQueue) connectionText = '랜덤 매칭 대기 중';
+    setLobbyOnlinePill('online-connection-status', connectionText);
+
+    var roomBox = document.getElementById('online-room-box');
+    var roomCode = document.getElementById('online-room-code');
+    var copyBtn = document.getElementById('copy-room-btn');
+    if (roomBox) roomBox.style.display = onlineState.roomId ? 'block' : 'none';
+    if (roomCode) roomCode.textContent = onlineState.roomId || '------';
+    if (copyBtn) copyBtn.style.display = onlineState.roomId ? 'inline-block' : 'none';
+
+    var cancelBtn = document.getElementById('cancel-match-btn');
+    if (cancelBtn) cancelBtn.style.display = (onlineState.inQueue || (onlineState.roomData && onlineState.roomData.status === 'waiting')) ? 'inline-block' : 'none';
+
+    var createBtn = document.getElementById('create-room-btn');
+    var randomBtn = document.getElementById('random-match-btn');
+    var joinBtn = document.getElementById('join-room-btn');
+    var canStartOnline = onlineState.authReady && !!nickname;
+    if (createBtn) createBtn.disabled = !canStartOnline;
+    if (randomBtn) randomBtn.disabled = !canStartOnline;
+    if (joinBtn) joinBtn.disabled = !canStartOnline;
+
+    var startBtn = document.getElementById('start-game-btn');
+    if (startBtn) startBtn.style.display = isOnlineMode() ? 'none' : 'block';
+
+    var localPlayerSection = document.getElementById('local-player-section');
+    if (localPlayerSection) localPlayerSection.style.display = isOnlineMode() ? 'none' : 'block';
+}
+
+function ensureFirebaseReady() {
+    if (onlineState.authReady && firebaseDb && firebaseAuth) return Promise.resolve();
+    if (!window.firebase) {
+        setLobbyOnlineMessage('Firebase SDK를 불러오지 못했습니다.');
+        return Promise.reject(new Error('Firebase SDK unavailable'));
+    }
+    if (!firebaseApp) {
+        firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+        firebaseAuth = firebase.auth();
+        firebaseDb = firebase.database();
+    }
+    if (firebaseAuth.currentUser) {
+        onlineState.authReady = true;
+        onlineState.authUid = firebaseAuth.currentUser.uid;
+        updateOnlineUI();
+        return Promise.resolve();
+    }
+    return firebaseAuth.signInAnonymously().then(function() {
+        onlineState.authReady = true;
+        onlineState.authUid = firebaseAuth.currentUser.uid;
+        updateOnlineUI();
+    }).catch(function(err) {
+        setLobbyOnlineMessage('Firebase 연결 실패: ' + err.message);
+        throw err;
+    });
+}
+
+function buildInitialOnlineGameState() {
+    var settings = getSelectedTimeSettings();
+    var initialSeconds = settings.unlimited ? 0 : settings.minutes * 60;
+    return {
+        state: {
+            board: cloneBoard(INITIAL_BOARD),
+            currentTurn: 'white',
+            castlingRights: { K: true, Q: true, k: true, q: true },
+            enPassantTarget: null,
+            halfMoveClock: 0,
+            fullMoveNumber: 1,
+            capturedByWhite: [],
+            capturedByBlack: [],
+            lastMoveFrom: null,
+            lastMoveTo: null,
+            whiteTime: initialSeconds,
+            blackTime: initialSeconds,
+            firstMoveMade: false
+        },
+        moveHistory: [],
+        finalGameResult: '*',
+        finalGameTermination: '',
+        gameStartedAt: Date.now(),
+        gameEndedAt: null
+    };
+}
+
+function serializeCurrentGameState() {
+    return {
+        state: cloneState(),
+        moveHistory: moveHistory.map(function(move) {
+            return {
+                notation: move.notation,
+                color: move.color,
+                durationMs: move.durationMs,
+                clockAfterMove: move.clockAfterMove
+            };
+        }),
+        finalGameResult: finalGameResult,
+        finalGameTermination: finalGameTermination,
+        gameStartedAt: gameStartedAt ? gameStartedAt.getTime() : Date.now(),
+        gameEndedAt: gameEndedAt ? gameEndedAt.getTime() : null
+    };
+}
+
+function rebuildMoveListFromHistory() {
+    var moveList = document.getElementById('move-list');
+    if (!moveList) return;
+    moveList.innerHTML = '';
+    for (var i = 0; i < moveHistory.length; i++) {
+        var move = moveHistory[i];
+        if (move.color === 'white') {
+            var entry = document.createElement('div');
+            entry.className = 'move-entry';
+            entry.innerHTML = '<span class="move-number">' + (Math.floor(i / 2) + 1) + '.</span><span class="move-white">' + createMoveCellHtml(move.notation, move.durationMs) + '</span><span class="move-black"></span>';
+            moveList.appendChild(entry);
+        } else {
+            var entries = moveList.querySelectorAll('.move-entry');
+            var last = entries[entries.length - 1];
+            if (last) last.querySelector('.move-black').innerHTML = createMoveCellHtml(move.notation, move.durationMs);
+        }
+    }
+    moveList.scrollTop = moveList.scrollHeight;
+}
+
+function getOnlineGameOverTitle() {
+    if (finalGameTermination === '체크메이트') return '체크메이트! 🏆';
+    if (finalGameTermination === '스테일메이트') return '스테일메이트!';
+    if (finalGameTermination === '기물 부족') return '기물 부족!';
+    if (finalGameTermination === '50수 규칙') return '50수 규칙!';
+    if (finalGameTermination === '시간 초과') return '시간 초과! ⏰';
+    if (finalGameResult === '1/2-1/2') return '무승부';
+    return '게임 종료';
+}
+
+function getOnlineGameOverMessage() {
+    if (finalGameTermination === '체크메이트' || finalGameTermination === '시간 초과') {
+        var winnerName = finalGameResult === '1-0' ? gameSetting.whiteName : gameSetting.blackName;
+        return winnerName + '의 승리입니다!';
+    }
+    if (finalGameResult === '1/2-1/2') return '무승부입니다.';
+    return finalGameTermination || '게임이 종료되었습니다.';
+}
+
+function applyOnlineGameState(serializedState) {
+    if (!serializedState || !serializedState.state) return;
+    onlineState.applyingRemoteState = true;
+    cleanupDragState();
+    restoreState(serializedState.state);
+    moveHistory = (serializedState.moveHistory || []).map(function(move) {
+        return {
+            notation: move.notation,
+            color: move.color,
+            durationMs: move.durationMs || 0,
+            clockAfterMove: move.clockAfterMove
+        };
+    });
+    finalGameResult = serializedState.finalGameResult || '*';
+    finalGameTermination = serializedState.finalGameTermination || '';
+    gameStartedAt = serializedState.gameStartedAt ? new Date(serializedState.gameStartedAt) : new Date();
+    gameEndedAt = serializedState.gameEndedAt ? new Date(serializedState.gameEndedAt) : null;
+    gameOver = finalGameResult !== '*';
+    stopTimer();
+    aiThinking = false;
+    showAIThinking(false);
+    rebuildMoveListFromHistory();
+    document.getElementById('gameover-modal').classList.remove('active');
+    renderBoard();
+    updateUI();
+    if (gameOver) {
+        showGameOver(getOnlineGameOverTitle(), getOnlineGameOverMessage());
+    } else if (!gameSetting.unlimited && isLocalOnlineTurn()) {
+        startTimer();
+    }
+    if (!gameOver) {
+        closePGNModal();
+        document.getElementById('promotion-modal').classList.remove('active');
+    }
+    if (!gameOver && isLocalOnlineTurn() && premoveQueue.length > 0) {
+        setTimeout(function() { tryExecutePremove(); }, 0);
+    } else if (isLocalOnlineTurn() && premoveQueue.length > 0) {
+        clearPremoveQueue();
+    }
+    onlineState.applyingRemoteState = false;
+}
+
+function enterOnlineGameFromRoom(room) {
+    if (!room) return;
+    onlineState.enabled = true;
+    onlineState.roomStarted = true;
+    onlineState.gameRevision = room.gameRevision || 0;
+    onlineState.playerColor = room.whiteUid === onlineState.authUid ? 'white' : (room.blackUid === onlineState.authUid ? 'black' : null);
+    gameSetting.mode = 'online';
+    gameSetting.minutes = room.settings && typeof room.settings.minutes === 'number' ? room.settings.minutes : 5;
+    gameSetting.increment = room.settings && typeof room.settings.increment === 'number' ? room.settings.increment : 0;
+    gameSetting.unlimited = !!(room.settings && room.settings.unlimited);
+    gameSetting.whiteName = room.whiteName || '백';
+    gameSetting.blackName = room.blackName || '흑';
+    document.getElementById('lobby-screen').classList.remove('active');
+    document.getElementById('game-screen').classList.add('active');
+    isFlipped = onlineState.playerColor === 'black';
+    applyOnlineGameState(room.gameState || buildInitialOnlineGameState());
+}
+
+function leaveOnlineRoom(reasonText) {
+    if (!firebaseDb || !onlineState.roomId || !onlineState.roomData) return Promise.resolve();
+    var room = onlineState.roomData;
+    if (room.status === 'waiting' && room.hostUid === onlineState.authUid) {
+        return firebaseDb.ref('rooms/' + onlineState.roomId).remove();
+    }
+    if (room.status === 'playing') {
+        var result = onlineState.playerColor === 'white' ? '0-1' : '1-0';
+        return firebaseDb.ref('rooms/' + onlineState.roomId).update({
+            status: 'finished',
+            gameRevision: (room.gameRevision || 0) + 1,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP,
+            gameState: {
+                state: serializeCurrentGameState().state,
+                moveHistory: moveHistory,
+                finalGameResult: result,
+                finalGameTermination: reasonText || '상대가 대국을 종료했습니다.',
+                gameStartedAt: gameStartedAt ? gameStartedAt.getTime() : Date.now(),
+                gameEndedAt: Date.now()
+            }
+        });
+    }
+    return Promise.resolve();
+}
+
+function resetOnlineSessionState() {
+    onlineState.enabled = false;
+    if (onlineState.roomRef && onlineState.roomListener) onlineState.roomRef.off('value', onlineState.roomListener);
+    if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);
+    onlineState.roomRef = null;
+    onlineState.roomListener = null;
+    onlineState.assignmentRef = null;
+    onlineState.assignmentListener = null;
+    onlineState.roomId = null;
+    onlineState.roomData = null;
+    onlineState.playerColor = null;
+    onlineState.roomStarted = false;
+    onlineState.inQueue = false;
+    onlineState.queueRef = null;
+    onlineState.gameRevision = -1;
+    onlineState.lastSyncedStateHash = null;
+    updateOnlineUI();
+}
+
+function subscribeToRoom(roomId) {
+    if (!firebaseDb) return;
+    if (onlineState.roomRef && onlineState.roomListener) onlineState.roomRef.off('value', onlineState.roomListener);
+    onlineState.roomId = roomId;
+    onlineState.roomRef = firebaseDb.ref('rooms/' + roomId);
+    onlineState.roomListener = function(snapshot) {
+        var room = snapshot.val();
+        if (!room) {
+            setLobbyOnlineMessage('방을 찾을 수 없습니다.');
+            resetOnlineSessionState();
+            document.getElementById('game-screen').classList.remove('active');
+            document.getElementById('lobby-screen').classList.add('active');
+            return;
+        }
+        onlineState.roomData = room;
+        onlineState.playerColor = room.whiteUid === onlineState.authUid ? 'white' : (room.blackUid === onlineState.authUid ? 'black' : null);
+        updateOnlineUI();
+        if (room.status === 'waiting') {
+            setLobbyOnlineMessage(room.hostUid === onlineState.authUid ? '친구를 기다리는 중입니다.' : '방 참가 처리 중입니다.');
+            return;
+        }
+        if (room.status === 'playing' || room.status === 'finished') {
+            setLobbyOnlineMessage(room.status === 'playing' ? '대국이 시작되었습니다.' : '대국이 종료되었습니다.');
+            var nextRevision = room.gameRevision || 0;
+            if (!onlineState.roomStarted) enterOnlineGameFromRoom(room);
+            else if (nextRevision !== onlineState.gameRevision) {
+                onlineState.gameRevision = nextRevision;
+                applyOnlineGameState(room.gameState);
+            }
+        }
+    };
+    onlineState.roomRef.on('value', onlineState.roomListener);
+}
+
+function syncOnlineGameState(reason) {
+    if (!isOnlineMode() || !onlineState.roomId || onlineState.applyingRemoteState || !firebaseDb) return Promise.resolve(false);
+    var payload = serializeCurrentGameState();
+    var hash = JSON.stringify(payload);
+    if (reason !== 'tick' && onlineState.lastSyncedStateHash === hash) return Promise.resolve(false);
+    onlineState.syncingState = true;
+    onlineState.lastSyncedStateHash = hash;
+    onlineState.gameRevision = (onlineState.gameRevision || 0) + 1;
+    return firebaseDb.ref('rooms/' + onlineState.roomId).update({
+        status: gameOver ? 'finished' : 'playing',
+        gameRevision: onlineState.gameRevision,
+        gameState: payload,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+    }).finally(function() {
+        onlineState.syncingState = false;
+    });
+}
+
+function createInviteRoom() {
+    ensureFirebaseReady().then(function() {
+        cancelOnlineWaiting();
+        var nickname = requireOnlineNickname();
+        var roomId = generateRoomCode();
+        var roomData = {
+            type: 'invite',
+            status: 'waiting',
+            hostUid: onlineState.authUid,
+            hostName: nickname,
+            guestUid: null,
+            guestName: null,
+            whiteUid: onlineState.authUid,
+            blackUid: null,
+            whiteName: nickname,
+            blackName: null,
+            settings: getSelectedTimeSettings(),
+            gameRevision: 0,
+            gameState: buildInitialOnlineGameState(),
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        return firebaseDb.ref('rooms/' + roomId).set(roomData).then(function() {
+            subscribeToRoom(roomId);
+            setLobbyOnlineMessage('방이 생성되었습니다. 친구에게 코드를 공유하세요.');
+            updateOnlineUI();
+        });
+    }).catch(function(err) {
+        setLobbyOnlineMessage('방 생성 실패: ' + err.message);
+    });
+}
+
+function joinRoomByCode() {
+    ensureFirebaseReady().then(function() {
+        cancelOnlineWaiting();
+        var input = document.getElementById('room-code-input');
+        var roomId = normalizeRoomCode(input && input.value);
+        if (!roomId) throw new Error('방 코드를 입력해주세요.');
+        var nickname = requireOnlineNickname();
+        return firebaseDb.ref('rooms/' + roomId).transaction(function(room) {
+            if (!room) return;
+            if (room.status !== 'waiting') return;
+            if (room.hostUid === onlineState.authUid) return room;
+            if (room.guestUid) return;
+            room.guestUid = onlineState.authUid;
+            room.guestName = nickname;
+            room.blackUid = onlineState.authUid;
+            room.blackName = nickname;
+            room.status = 'playing';
+            return room;
+        }).then(function(result) {
+            if (!result.committed) throw new Error('참가할 수 없는 방입니다.');
+            subscribeToRoom(roomId);
+            firebaseDb.ref('rooms/' + roomId + '/updatedAt').set(firebase.database.ServerValue.TIMESTAMP);
+            setLobbyOnlineMessage('방에 참가했습니다.');
+        });
+    }).catch(function(err) {
+        setLobbyOnlineMessage('방 참가 실패: ' + err.message);
+    });
+}
+
+function copyInviteCode() {
+    if (!onlineState.roomId) return;
+    var roomCode = onlineState.roomId;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(roomCode).then(function() {
+            setLobbyOnlineMessage('방 코드가 복사되었습니다.');
+        });
+        return;
+    }
+    setLobbyOnlineMessage('방 코드: ' + roomCode);
+}
+
+function waitForRandomAssignment() {
+    if (!firebaseDb || !onlineState.authUid) return;
+    if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);
+    onlineState.assignmentRef = firebaseDb.ref('matchAssignments/' + onlineState.authUid);
+    onlineState.assignmentListener = function(snapshot) {
+        var roomId = snapshot.val();
+        if (!roomId) return;
+        onlineState.inQueue = false;
+        if (onlineState.queueRef) onlineState.queueRef.remove();
+        subscribeToRoom(roomId);
+        onlineState.assignmentRef.remove();
+        setLobbyOnlineMessage('상대를 찾았습니다. 방에 입장합니다.');
+        updateOnlineUI();
+    };
+    onlineState.assignmentRef.on('value', onlineState.assignmentListener);
+}
+
+function createRandomRoomWithOpponent(opponent, nickname) {
+    var roomId = generateRoomCode();
+    var roomData = {
+        type: 'random',
+        status: 'playing',
+        hostUid: opponent.uid,
+        hostName: opponent.name,
+        guestUid: onlineState.authUid,
+        guestName: nickname,
+        whiteUid: opponent.uid,
+        blackUid: onlineState.authUid,
+        whiteName: opponent.name,
+        blackName: nickname,
+        settings: getSelectedTimeSettings(),
+        gameRevision: 0,
+        gameState: buildInitialOnlineGameState(),
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+    };
+    var updates = {};
+    updates['rooms/' + roomId] = roomData;
+    updates['matchAssignments/' + opponent.uid] = roomId;
+    updates['matchAssignments/' + onlineState.authUid] = roomId;
+    updates['matchmaking/' + getMatchmakingKey()] = null;
+    return firebaseDb.ref().update(updates).then(function() {
+        setLobbyOnlineMessage('랜덤 매칭 상대를 찾았습니다.');
+    });
+}
+
+function startRandomMatch() {
+    ensureFirebaseReady().then(function() {
+        cancelOnlineWaiting();
+        var queueKey = getMatchmakingKey();
+        var nickname = requireOnlineNickname();
+        var queueRef = firebaseDb.ref('matchmaking/' + queueKey);
+        onlineState.inQueue = true;
+        onlineState.queueRef = queueRef;
+        waitForRandomAssignment();
+        setLobbyOnlineMessage('랜덤 매칭 상대를 찾는 중입니다...');
+        updateOnlineUI();
+        var matchedOpponent = null;
+        return queueRef.transaction(function(current) {
+            if (current && current.uid && current.uid !== onlineState.authUid) {
+                matchedOpponent = current;
+                return null;
+            }
+            if (!current) {
+                return {
+                    uid: onlineState.authUid,
+                    name: nickname,
+                    minutes: gameSetting.minutes,
+                    increment: gameSetting.increment,
+                    unlimited: gameSetting.unlimited,
+                    createdAt: Date.now()
+                };
+            }
+            return current;
+        }).then(function(result) {
+            if (matchedOpponent) return createRandomRoomWithOpponent(matchedOpponent, nickname);
+            if (!result.committed) throw new Error('매칭 대기열 등록에 실패했습니다.');
+            setLobbyOnlineMessage('대기열에 등록되었습니다. 상대를 기다리는 중입니다.');
+        });
+    }).catch(function(err) {
+        onlineState.inQueue = false;
+        updateOnlineUI();
+        setLobbyOnlineMessage('랜덤 매칭 실패: ' + err.message);
+    });
+}
+
+function cancelOnlineWaiting() {
+    var tasks = [];
+    if (onlineState.queueRef) tasks.push(onlineState.queueRef.remove());
+    if (onlineState.assignmentRef) tasks.push(onlineState.assignmentRef.remove());
+    if (onlineState.roomData && onlineState.roomData.status === 'waiting' && onlineState.roomData.hostUid === onlineState.authUid && onlineState.roomId && firebaseDb) {
+        tasks.push(firebaseDb.ref('rooms/' + onlineState.roomId).remove());
+    }
+    if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);
+    onlineState.assignmentRef = null;
+    onlineState.assignmentListener = null;
+    onlineState.queueRef = null;
+    onlineState.inQueue = false;
+    if (onlineState.roomData && onlineState.roomData.status === 'waiting') {
+        if (onlineState.roomRef && onlineState.roomListener) onlineState.roomRef.off('value', onlineState.roomListener);
+        onlineState.roomRef = null;
+        onlineState.roomListener = null;
+        onlineState.roomId = null;
+        onlineState.roomData = null;
+    }
+    updateOnlineUI();
+    setLobbyOnlineMessage('온라인 대기를 취소했습니다.');
+    return Promise.all(tasks);
+}
+
 function canControlPiece(row, col) {
     if (gameOver || isAITurn() || aiThinking) return false;
     var piece = board[row][col];
     if (!piece || pieceColor(piece) !== currentTurn) return false;
+    if (isOnlineMode() && (!onlineState.playerColor || pieceColor(piece) !== onlineState.playerColor)) return false;
     if (gameSetting.mode === 'ai' && pieceColor(piece) === gameSetting.aiColor) return false;
     return true;
 }
@@ -260,6 +842,9 @@ function createBoardStateSnapshot() {
 
 function getPremoveActorColor() {
     if (gameOver) return null;
+    if (isOnlineMode()) {
+        return currentTurn !== onlineState.playerColor ? onlineState.playerColor : null;
+    }
     if (gameSetting.mode === 'ai') {
         return currentTurn !== gameSetting.playerColor ? gameSetting.playerColor : null;
     }
@@ -455,6 +1040,7 @@ function queuePremove(fromRow, fromCol, toRow, toCol, promotionPiece) {
 
 function tryExecutePremove() {
     if (gameOver || premoveQueue.length === 0) return false;
+    if (isOnlineMode() && !isLocalOnlineTurn()) return false;
 
     var nextMove = premoveQueue[0];
     var piece = board[nextMove.fromRow][nextMove.fromCol];
@@ -579,18 +1165,25 @@ function finishDragMove(toRow, toCol) {
 //  로비 로직
 // ============================================================
 function selectMode(mode) {
-    if (mode === 'online') return; // ★ online만 비활성화
     document.querySelectorAll('.mode-btn').forEach(function(btn) { btn.classList.remove('active'); });
     document.querySelector('.mode-btn[data-mode="' + mode + '"]').classList.add('active');
     gameSetting.mode = mode;
     
     // ★ AI 설정 패널 토글
     var aiSettings = document.getElementById('ai-settings');
-    if (mode === 'ai') {
-        aiSettings.classList.add('visible');
+    var onlineSettings = document.getElementById('online-settings');
+    if (mode === 'ai') aiSettings.classList.add('visible');
+    else aiSettings.classList.remove('visible');
+
+    if (mode === 'online') {
+        onlineSettings.classList.add('visible');
+        ensureFirebaseReady().then(function() {
+            setLobbyOnlineMessage('닉네임을 입력하면 방을 만들거나 참가할 수 있습니다.');
+        }).catch(function() {});
     } else {
-        aiSettings.classList.remove('visible');
+        onlineSettings.classList.remove('visible');
     }
+    updateOnlineUI();
 }
 
 // ★ AI 색상 선택 (플레이어가 선택하는 색상)
@@ -699,6 +1292,10 @@ function updateTimeSummary() {
 }
 
 function startGame() {
+    if (isOnlineMode()) {
+        setLobbyOnlineMessage('온라인 모드에서는 방 만들기, 방 참가, 랜덤 매칭 버튼을 사용해주세요.');
+        return;
+    }
     gameSetting.whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
     gameSetting.blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
     
@@ -738,6 +1335,11 @@ function startGame() {
 }
 
 function backToLobby() {
+    if (isOnlineMode()) {
+        leaveOnlineRoom('상대가 대국을 종료했습니다.').catch(function() {});
+        cancelOnlineWaiting();
+        resetOnlineSessionState();
+    }
     stopTimer(); gameOver = true;
     cleanupDragState();
     clearPremoveQueue();
@@ -748,7 +1350,7 @@ function backToLobby() {
     aiThinking = false;
     showAIThinking(false);
     // ★ 엔진 종료
-    if (stockfishWorker) {
+    if (stockfishWorker && gameSetting.mode === 'ai') {
         stockfishWorker.postMessage('stop');
         stockfishWorker.postMessage('quit');
         stockfishWorker.terminate();
@@ -760,6 +1362,8 @@ function backToLobby() {
     document.getElementById('promotion-modal').classList.remove('active');
     document.getElementById('game-screen').classList.remove('active');
     document.getElementById('lobby-screen').classList.add('active');
+    gameSetting.mode = 'pvp';
+    selectMode('pvp');
 }
 
 // ============================================================
@@ -1034,6 +1638,11 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
     if (!gameOver && tryExecutePremove()) return;
     renderBoard(); updateUI();
+
+    if (isOnlineMode() && !onlineState.applyingRemoteState) {
+        syncOnlineGameState(gameOver ? 'finish' : 'move');
+        return;
+    }
     
     // ★ AI 턴이면 AI에게 수 요청
     if (isAITurn()) {
@@ -1613,6 +2222,7 @@ function startTimer() {
     if (gameSetting.unlimited) return;
     timerInterval = setInterval(function() {
         if (gameOver) { stopTimer(); return; }
+        if (isOnlineMode() && !isLocalOnlineTurn()) return;
         if (currentTurn === 'white') {
             whiteTime--;
             if (whiteTime <= 0) { whiteTime = 0; gameOver = true; setGameConclusion('0-1', '시간 초과'); turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
@@ -1621,6 +2231,7 @@ function startTimer() {
             if (blackTime <= 0) { blackTime = 0; gameOver = true; setGameConclusion('1-0', '시간 초과'); turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
         }
         updateTimerDisplay();
+        if (isOnlineMode() && !onlineState.applyingRemoteState) syncOnlineGameState(gameOver ? 'finish' : 'tick');
     }, 1000);
 }
 
@@ -1628,6 +2239,10 @@ function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerI
 
 // ★ 되돌리기: AI 모드에서는 AI 수까지 같이 되돌림 (2수)
 function undoMove() {
+    if (isOnlineMode()) {
+        alert('온라인 대전에서는 되돌리기를 사용할 수 없습니다.');
+        return;
+    }
     if (boardHistory.length === 0) return;
     cleanupDragState();
     clearPremoveQueue();
@@ -1728,6 +2343,10 @@ function initGame() {
 }
 
 function restartGame() {
+    if (isOnlineMode()) {
+        alert('온라인 대전에서는 재시작 대신 새 방을 만들거나 다시 매칭해주세요.');
+        return;
+    }
     document.getElementById('gameover-modal').classList.remove('active');
     closePGNModal();
     cleanupDragState();
@@ -1745,4 +2364,14 @@ function restartGame() {
 window.addEventListener('DOMContentLoaded', function() {
     updateTimeSummary();
     updateAILevelUI();
+    var onlineNameInput = document.getElementById('online-name');
+    if (onlineNameInput) {
+        onlineNameInput.addEventListener('input', function() {
+            updateOnlineUI();
+        });
+    }
+    ensureFirebaseReady().then(function() {
+        setLobbyOnlineMessage('온라인 PvP를 선택한 뒤 닉네임을 입력하면 바로 사용할 수 있습니다.');
+    }).catch(function() {});
+    updateOnlineUI();
 });

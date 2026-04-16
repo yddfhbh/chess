@@ -36,10 +36,10 @@
                     <span class="mode-label">vs AI</span>
                     <span class="mode-desc">Stockfish 18 엔진</span>
                 </div>
-                <div class="mode-btn disabled" data-mode="online">
+                <div class="mode-btn" data-mode="online" onclick="selectMode('online')">
                     <span class="mode-icon">🌐</span>
                     <span class="mode-label">온라인 PvP</span>
-                    <span class="mode-desc">준비 중...</span>
+                    <span class="mode-desc">방 코드 초대 / 랜덤 매칭</span>
                 </div>
             </div>
 
@@ -71,6 +71,34 @@
                         <span>20</span>
                     </div>
                 </div>
+            </div>
+
+            <div class="online-settings" id="online-settings">
+                <h3>🌐 온라인 대전</h3>
+                <p class="online-help">닉네임을 자유롭게 입력한 뒤 방을 만들거나 친구의 방 코드로 참가할 수 있습니다.</p>
+                <div class="online-auth-row">
+                    <span class="online-pill" id="online-auth-status">닉네임을 입력하세요</span>
+                    <span class="online-pill secondary" id="online-connection-status">온라인 준비 중</span>
+                </div>
+                <div class="online-name-row">
+                    <label for="online-name">내 닉네임</label>
+                    <input type="text" id="online-name" placeholder="예: 체크메이트왕" maxlength="20">
+                </div>
+                <div class="online-actions">
+                    <button type="button" class="online-btn primary" id="create-room-btn" onclick="createInviteRoom()">방 만들기</button>
+                    <button type="button" class="online-btn" id="random-match-btn" onclick="startRandomMatch()">랜덤 매칭</button>
+                    <button type="button" class="online-btn ghost" id="cancel-match-btn" onclick="cancelOnlineWaiting()" style="display:none;">대기 취소</button>
+                </div>
+                <div class="online-join-row">
+                    <input type="text" id="room-code-input" placeholder="방 코드 입력" maxlength="8" autocomplete="off">
+                    <button type="button" class="online-btn" id="join-room-btn" onclick="joinRoomByCode()">참가</button>
+                    <button type="button" class="online-btn ghost" id="copy-room-btn" onclick="copyInviteCode()" style="display:none;">코드 복사</button>
+                </div>
+                <div class="online-room-box" id="online-room-box" style="display:none;">
+                    <div class="online-room-label">현재 방 코드</div>
+                    <div class="online-room-code" id="online-room-code">------</div>
+                </div>
+                <div class="online-status-text" id="online-status-text">닉네임을 정한 뒤 방을 만들거나 친구의 방 코드로 참가할 수 있습니다.</div>
             </div>
         </div>
 
@@ -143,7 +171,7 @@
         </div>
 
         <!-- 플레이어 이름 -->
-        <div class="lobby-section">
+        <div class="lobby-section" id="local-player-section">
             <h2>👤 플레이어</h2>
             <div class="player-inputs">
                 <div class="player-input-group">
@@ -157,7 +185,7 @@
             </div>
         </div>
 
-        <button class="start-btn" onclick="startGame()">🎯 게임 시작</button>
+        <button class="start-btn" id="start-game-btn" onclick="startGame()">🎯 게임 시작</button>
     </div>
 </div>
 
@@ -271,6 +299,9 @@
     </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="app.js"></script>
 
 </body>
