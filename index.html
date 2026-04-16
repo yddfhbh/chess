@@ -266,6 +266,18 @@
     </div>
 </div>
 
+<div id="resign-modal" class="modal-overlay" onclick="if (event.target === this) closeResignModal()">
+    <div class="modal-content resign-modal">
+        <h2>기권 확인</h2>
+        <p>확인을 누르기 전까지는 게임이 계속 진행됩니다. 정말 기권할까요?</p>
+        <div id="resign-modal-error" class="modal-inline-error" aria-live="polite"></div>
+        <div class="modal-buttons">
+            <button class="modal-btn secondary" id="resign-cancel-btn" onclick="closeResignModal()">취소</button>
+            <button class="modal-btn danger" id="resign-confirm-btn" onclick="confirmResignGame()">기권하기</button>
+        </div>
+    </div>
+</div>
+
 <!-- ============================================
      프로모션 모달
      ============================================ -->

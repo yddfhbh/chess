@@ -1022,12 +1022,43 @@ body {
     color: #1a1a2e;
 }
 
+.modal-btn.danger {
+    background: linear-gradient(135deg, #ff7b72, #e55353);
+    color: #fff;
+}
+
 .modal-btn.secondary {
     background: rgba(255,255,255,0.1);
     color: var(--text-primary);
 }
 
 .modal-btn:hover { transform: translateY(-2px); }
+.modal-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+    transform: none;
+}
+
+.resign-modal {
+    width: min(calc(100vw - 24px), 420px);
+}
+
+.modal-inline-error {
+    display: none;
+    margin: -10px 0 18px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 107, 107, 0.12);
+    border: 1px solid rgba(255, 107, 107, 0.28);
+    color: #ffc9c9;
+    font-size: 0.92em;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.modal-inline-error.visible {
+    display: block;
+}
 
 #promotion-choices {
     display: flex;

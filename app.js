@@ -69,6 +69,7 @@ var gameEndedAt = null;
 var selectedInteractionMode = null;
 var selectedPiece = null;
 var premoveQueue = [];
+var resignModalPending = false;
 
 // ★ ============================================================
 //  Stockfish WASM 엔진 관련 변수
@@ -1524,6 +1525,7 @@ function backToLobby() {
         engineReady = false;
     }
     document.getElementById('gameover-modal').classList.remove('active');
+    closeResignModal(true);
     closePGNModal();
     document.getElementById('promotion-modal').classList.remove('active');
     document.getElementById('game-screen').classList.remove('active');
@@ -1561,22 +1563,73 @@ function applyResignationOutcome(loserColor) {
     showGameOver('기권', getWinnerNameByColor(winnerColor) + '의 승리입니다!');
 }
 
+function setResignModalError(message) {
+    var errorEl = document.getElementById('resign-modal-error');
+    if (!errorEl) return;
+    errorEl.textContent = message || '';
+    errorEl.classList.toggle('visible', !!message);
+}
+
+function syncResignModalButtons() {
+    var cancelBtn = document.getElementById('resign-cancel-btn');
+    var confirmBtn = document.getElementById('resign-confirm-btn');
+    if (cancelBtn) cancelBtn.disabled = resignModalPending;
+    if (confirmBtn) {
+        confirmBtn.disabled = resignModalPending;
+        confirmBtn.textContent = resignModalPending ? '처리 중...' : '기권하기';
+    }
+}
+
+function openResignModal() {
+    if (gameOver || resignModalPending) return;
+    if (!getResigningColor()) return;
+    setResignModalError('');
+    syncResignModalButtons();
+    document.getElementById('resign-modal').classList.add('active');
+}
+
+function closeResignModal(force) {
+    if (resignModalPending && !force) return;
+    resignModalPending = false;
+    syncResignModalButtons();
+    setResignModalError('');
+    document.getElementById('resign-modal').classList.remove('active');
+}
+
 function resignGame() {
-    if (gameOver) return;
+    openResignModal();
+}
+
+function confirmResignGame() {
+    if (gameOver || resignModalPending) return;
+
     var loserColor = getResigningColor();
-    if (!loserColor) return;
-    if (!confirm('기권하시겠습니까?')) return;
+    if (!loserColor) {
+        closeResignModal(true);
+        return;
+    }
+
+    resignModalPending = true;
+    setResignModalError('');
+    syncResignModalButtons();
+
     if (gameSetting.mode === 'ai' && stockfishWorker) {
         stockfishWorker.postMessage('stop');
     }
+
     if (isOnlineMode()) {
         leaveOnlineRoom('기권').then(function() {
+            closeResignModal(true);
             applyResignationOutcome(loserColor);
         }).catch(function(err) {
-            alert('기권 처리에 실패했습니다: ' + err.message);
+            resignModalPending = false;
+            syncResignModalButtons();
+            setResignModalError('기권 처리에 실패했습니다: ' + err.message);
         });
         return;
     }
+
+    closeResignModal(true);
     applyResignationOutcome(loserColor);
 }
 
@@ -2045,6 +2098,7 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol) {
 
 function showGameOver(title, message) {
     if (!gameEndedAt) gameEndedAt = new Date();
+    closeResignModal(true);
     document.getElementById('gameover-title').textContent = title;
     document.getElementById('gameover-message').textContent = message;
     document.getElementById('gameover-modal').classList.add('active');
@@ -2488,6 +2542,7 @@ function undoMove() {
     selectedSquare = null; possibleMoves = []; gameOver = false;
     turnStartedAt = Date.now();
     document.getElementById('gameover-modal').classList.remove('active');
+    closeResignModal(true);
     closePGNModal();
     if (!gameSetting.unlimited && firstMoveMade) startTimer();
     renderBoard(); updateUI();
@@ -2527,6 +2582,7 @@ function initGame() {
 
     document.getElementById('move-list').innerHTML = '';
     document.getElementById('gameover-modal').classList.remove('active');
+    closeResignModal(true);
     closePGNModal();
     document.getElementById('promotion-modal').classList.remove('active');
     stopTimer();
@@ -2562,6 +2618,7 @@ function restartGame() {
         return;
     }
     document.getElementById('gameover-modal').classList.remove('active');
+    closeResignModal(true);
     closePGNModal();
     cleanupDragState();
     clearPremoveQueue();
