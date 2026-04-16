@@ -64,6 +64,9 @@ var dragState = null;
 var turnStartedAt = null;
 var gameStartedAt = null;
 var finalGameResult = '*';
+var selectedInteractionMode = null;
+var selectedPiece = null;
+var premoveQueue = [];
 
 // ★ ============================================================
 //  Stockfish WASM 엔진 관련 변수
@@ -241,6 +244,171 @@ function canControlPiece(row, col) {
     return true;
 }
 
+function cloneCastlingRights(rights) {
+    return { K: rights.K, Q: rights.Q, k: rights.k, q: rights.q };
+}
+
+function createBoardStateSnapshot() {
+    return {
+        board: cloneBoard(board),
+        castlingRights: cloneCastlingRights(castlingRights),
+        enPassantTarget: enPassantTarget ? enPassantTarget.slice() : null
+    };
+}
+
+function getPremoveActorColor() {
+    if (gameOver) return null;
+    if (gameSetting.mode === 'ai') {
+        return currentTurn !== gameSetting.playerColor ? gameSetting.playerColor : null;
+    }
+    return opponentColor(currentTurn);
+}
+
+function legalMovesForState(state, row, col) {
+    var piece = state.board[row][col];
+    if (!piece) return [];
+    var color = pieceColor(piece);
+    var pseudo = pseudoLegalMoves(state.board, row, col, state.castlingRights, state.enPassantTarget);
+    var legal = [];
+    for (var i = 0; i < pseudo.length; i++) {
+        var tr = pseudo[i][0], tc = pseudo[i][1];
+        var testBoard = cloneBoard(state.board);
+        if (piece.toUpperCase() === 'P' && state.enPassantTarget && tr === state.enPassantTarget[0] && tc === state.enPassantTarget[1]) {
+            testBoard[color === 'white' ? tr + 1 : tr - 1][tc] = '';
+        }
+        if (piece.toUpperCase() === 'K' && Math.abs(tc - col) === 2) {
+            if (tc === 6) { testBoard[row][5] = testBoard[row][7]; testBoard[row][7] = ''; }
+            if (tc === 2) { testBoard[row][3] = testBoard[row][0]; testBoard[row][0] = ''; }
+        }
+        testBoard[tr][tc] = testBoard[row][col];
+        testBoard[row][col] = '';
+        if (!isInCheck(testBoard, color)) legal.push([tr, tc]);
+    }
+    return legal;
+}
+
+function getDefaultPromotionPiece(piece) {
+    return pieceColor(piece) === 'white' ? 'Q' : 'q';
+}
+
+function applyMoveToState(state, move) {
+    var piece = state.board[move.fromRow][move.fromCol];
+    if (!piece) return false;
+    if (!isLegalDestination(move.toRow, move.toCol, legalMovesForState(state, move.fromRow, move.fromCol))) return false;
+
+    if (piece.toUpperCase() === 'P' && state.enPassantTarget && move.toRow === state.enPassantTarget[0] && move.toCol === state.enPassantTarget[1]) {
+        state.board[pieceColor(piece) === 'white' ? move.toRow + 1 : move.toRow - 1][move.toCol] = '';
+    }
+
+    if (piece.toUpperCase() === 'K' && Math.abs(move.toCol - move.fromCol) === 2) {
+        if (move.toCol === 6) { state.board[move.fromRow][5] = state.board[move.fromRow][7]; state.board[move.fromRow][7] = ''; }
+        else { state.board[move.fromRow][3] = state.board[move.fromRow][0]; state.board[move.fromRow][0] = ''; }
+    }
+
+    state.board[move.toRow][move.toCol] = piece;
+    state.board[move.fromRow][move.fromCol] = '';
+
+    if (piece.toUpperCase() === 'P' && Math.abs(move.toRow - move.fromRow) === 2) state.enPassantTarget = [(move.fromRow + move.toRow) / 2, move.fromCol];
+    else state.enPassantTarget = null;
+
+    if (piece.toUpperCase() === 'P' && (move.toRow === 0 || move.toRow === 7)) {
+        state.board[move.toRow][move.toCol] = move.promotionPiece || getDefaultPromotionPiece(piece);
+    }
+
+    if (piece === 'K') { state.castlingRights.K = false; state.castlingRights.Q = false; }
+    if (piece === 'k') { state.castlingRights.k = false; state.castlingRights.q = false; }
+    if (piece === 'R' && move.fromRow === 7 && move.fromCol === 7) state.castlingRights.K = false;
+    if (piece === 'R' && move.fromRow === 7 && move.fromCol === 0) state.castlingRights.Q = false;
+    if (piece === 'r' && move.fromRow === 0 && move.fromCol === 7) state.castlingRights.k = false;
+    if (piece === 'r' && move.fromRow === 0 && move.fromCol === 0) state.castlingRights.q = false;
+    if (move.toRow === 7 && move.toCol === 7) state.castlingRights.K = false;
+    if (move.toRow === 7 && move.toCol === 0) state.castlingRights.Q = false;
+    if (move.toRow === 0 && move.toCol === 7) state.castlingRights.k = false;
+    if (move.toRow === 0 && move.toCol === 0) state.castlingRights.q = false;
+
+    return true;
+}
+
+function clearPremoveQueue() {
+    premoveQueue = [];
+}
+
+function buildPremovePreviewState() {
+    var actorColor = getPremoveActorColor();
+    if (!actorColor) return null;
+
+    var state = createBoardStateSnapshot();
+    for (var i = 0; i < premoveQueue.length; i++) {
+        var queuedMove = premoveQueue[i];
+        var queuedPiece = state.board[queuedMove.fromRow][queuedMove.fromCol];
+        if (!queuedPiece || pieceColor(queuedPiece) !== actorColor || !applyMoveToState(state, queuedMove)) {
+            clearPremoveQueue();
+            return createBoardStateSnapshot();
+        }
+    }
+    return state;
+}
+
+function canStartPremove(row, col, previewState) {
+    var actorColor = getPremoveActorColor();
+    var state = previewState || buildPremovePreviewState();
+    if (!actorColor || !state) return false;
+    var piece = state.board[row][col];
+    if (!piece || pieceColor(piece) !== actorColor) return false;
+    if (gameSetting.mode === 'ai' && actorColor === gameSetting.aiColor) return false;
+    return true;
+}
+
+function canDragPiece(row, col) {
+    if (canControlPiece(row, col)) return true;
+    return canStartPremove(row, col);
+}
+
+function setSelection(row, col, moves, mode, piece) {
+    selectedSquare = [row, col];
+    possibleMoves = moves.slice();
+    selectedInteractionMode = mode;
+    selectedPiece = piece;
+}
+
+function queuePremove(fromRow, fromCol, toRow, toCol, promotionPiece) {
+    premoveQueue.push({
+        fromRow: fromRow,
+        fromCol: fromCol,
+        toRow: toRow,
+        toCol: toCol,
+        promotionPiece: promotionPiece || null
+    });
+    cleanupDragState();
+    renderBoard();
+    updateUI();
+}
+
+function tryExecutePremove() {
+    if (gameOver || premoveQueue.length === 0) return false;
+
+    var nextMove = premoveQueue[0];
+    var piece = board[nextMove.fromRow][nextMove.fromCol];
+    if (!piece || pieceColor(piece) !== currentTurn) {
+        clearPremoveQueue();
+        return false;
+    }
+
+    var legal = legalMoves(nextMove.fromRow, nextMove.fromCol);
+    if (!isLegalDestination(nextMove.toRow, nextMove.toCol, legal)) {
+        clearPremoveQueue();
+        return false;
+    }
+
+    premoveQueue.shift();
+    var promotionPiece = nextMove.promotionPiece;
+    if (piece.toUpperCase() === 'P' && (nextMove.toRow === 0 || nextMove.toRow === 7) && !promotionPiece) {
+        promotionPiece = getDefaultPromotionPiece(piece);
+    }
+    executeMove(nextMove.fromRow, nextMove.fromCol, nextMove.toRow, nextMove.toCol, promotionPiece, { forceDurationMs: 0 });
+    return true;
+}
+
 function isLegalDestination(row, col, moves) {
     for (var i = 0; i < moves.length; i++) {
         if (moves[i][0] === row && moves[i][1] === col) return true;
@@ -276,28 +444,35 @@ function cleanupDragState() {
     dragState = null;
     selectedSquare = null;
     possibleMoves = [];
+    selectedInteractionMode = null;
+    selectedPiece = null;
 }
 
 function startPieceDrag(row, col, pieceEl, event) {
-    if (!canControlPiece(row, col)) {
+    var mode = canControlPiece(row, col) ? 'live' : (canStartPremove(row, col) ? 'premove' : null);
+    if (!mode) {
         if (event && event.preventDefault) event.preventDefault();
         return;
     }
 
-    var moves = legalMoves(row, col);
+    var previewState = mode === 'premove' ? buildPremovePreviewState() : null;
+    var moves = mode === 'live' ? legalMoves(row, col) : legalMovesForState(previewState, row, col);
     if (moves.length === 0) {
         if (event && event.preventDefault) event.preventDefault();
         return;
     }
 
+    var piece = mode === 'live' ? board[row][col] : previewState.board[row][col];
+
     cleanupDragState();
     dragState = {
         fromRow: row,
         fromCol: col,
-        moves: moves
+        moves: moves,
+        mode: mode,
+        piece: piece
     };
-    selectedSquare = [row, col];
-    possibleMoves = moves.slice();
+    setSelection(row, col, moves, mode, piece);
     applyDragHighlights();
 
     if (pieceEl) pieceEl.classList.add('dragging');
@@ -317,12 +492,15 @@ function finishDragMove(toRow, toCol) {
 
     var fromRow = dragState.fromRow;
     var fromCol = dragState.fromCol;
-    var movingPiece = board[fromRow][fromCol];
+    var movingPiece = dragState.piece;
+    var moveMode = dragState.mode;
 
     cleanupDragState();
 
     if (movingPiece && movingPiece.toUpperCase() === 'P' && (toRow === 0 || toRow === 7)) {
-        showPromotionModal(fromRow, fromCol, toRow, toCol);
+        showPromotionModal(fromRow, fromCol, toRow, toCol, moveMode, movingPiece);
+    } else if (moveMode === 'premove') {
+        queuePremove(fromRow, fromCol, toRow, toCol, null);
     } else {
         executeMove(fromRow, fromCol, toRow, toCol, null);
     }
@@ -482,6 +660,7 @@ function startGame() {
 function backToLobby() {
     stopTimer(); gameOver = true;
     cleanupDragState();
+    clearPremoveQueue();
     turnStartedAt = null;
     finalGameResult = '*';
     aiThinking = false;
@@ -495,6 +674,7 @@ function backToLobby() {
         engineReady = false;
     }
     document.getElementById('gameover-modal').classList.remove('active');
+    closePGNModal();
     document.getElementById('promotion-modal').classList.remove('active');
     document.getElementById('game-screen').classList.remove('active');
     document.getElementById('lobby-screen').classList.add('active');
@@ -654,26 +834,7 @@ function pseudoLegalMoves(b, row, col, castling, epTarget) {
 }
 
 function legalMoves(row, col) {
-    var piece = board[row][col];
-    if (!piece) return [];
-    var color = pieceColor(piece);
-    var pseudo = pseudoLegalMoves(board, row, col, castlingRights, enPassantTarget);
-    var legal = [];
-    for (var i = 0; i < pseudo.length; i++) {
-        var tr = pseudo[i][0], tc = pseudo[i][1];
-        var testBoard = cloneBoard(board);
-        if (piece.toUpperCase() === 'P' && enPassantTarget && tr === enPassantTarget[0] && tc === enPassantTarget[1]) {
-            testBoard[color === 'white' ? tr + 1 : tr - 1][tc] = '';
-        }
-        if (piece.toUpperCase() === 'K' && Math.abs(tc - col) === 2) {
-            if (tc === 6) { testBoard[row][5] = testBoard[row][7]; testBoard[row][7] = ''; }
-            if (tc === 2) { testBoard[row][3] = testBoard[row][0]; testBoard[row][0] = ''; }
-        }
-        testBoard[tr][tc] = testBoard[row][col];
-        testBoard[row][col] = '';
-        if (!isInCheck(testBoard, color)) legal.push([tr, tc]);
-    }
-    return legal;
+    return legalMovesForState(createBoardStateSnapshot(), row, col);
 }
 
 function hasAnyLegalMoves(color) {
@@ -696,12 +857,14 @@ function isInsufficientMaterial() {
     return false;
 }
 
-function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
+function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     cleanupDragState();
     boardHistory.push(cloneState());
     var piece = board[fromRow][fromCol];
     var color = pieceColor(piece);
-    var moveDurationMs = turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0;
+    var isWhiteFirstMove = !firstMoveMade && color === 'white';
+    var moveOptions = options || {};
+    var moveDurationMs = typeof moveOptions.forceDurationMs === 'number' ? moveOptions.forceDurationMs : (isWhiteFirstMove ? 100 : (turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0));
     var captured = board[toRow][toCol];
     var moveNotation = '';
     var isCapture = false;
@@ -781,6 +944,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     }
     turnStartedAt = gameOver ? null : Date.now();
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
+    if (!gameOver && tryExecutePremove()) return;
     renderBoard(); updateUI();
     
     // ★ AI 턴이면 AI에게 수 요청
@@ -831,6 +995,7 @@ function addMoveToHistory(notation, color, durationMs, clockAfterMove) {
 
 function renderBoard() {
     var chessboard = document.getElementById('chessboard');
+    var premoveState = premoveQueue.length > 0 ? buildPremovePreviewState() : null;
     chessboard.innerHTML = '';
     for (var r = 0; r < 8; r++) {
         for (var c = 0; c < 8; c++) {
@@ -843,6 +1008,12 @@ function renderBoard() {
             if (lastMoveFrom && lastMoveFrom[0] === displayR && lastMoveFrom[1] === displayC) square.classList.add('last-move');
             if (lastMoveTo && lastMoveTo[0] === displayR && lastMoveTo[1] === displayC) square.classList.add('last-move');
             if (selectedSquare && selectedSquare[0] === displayR && selectedSquare[1] === displayC) square.classList.add('selected');
+            if (premoveState) {
+                for (var q = 0; q < premoveQueue.length; q++) {
+                    if (premoveQueue[q].fromRow === displayR && premoveQueue[q].fromCol === displayC) square.classList.add('premove-from');
+                    if (premoveQueue[q].toRow === displayR && premoveQueue[q].toCol === displayC) square.classList.add('premove-to');
+                }
+            }
 
             var isPossible = false;
             for (var m = 0; m < possibleMoves.length; m++) {
@@ -857,7 +1028,7 @@ function renderBoard() {
                 var pieceDiv = document.createElement('div');
                 pieceDiv.className = 'piece-svg';
                 pieceDiv.innerHTML = PIECE_SVG[piece];
-                if (canControlPiece(displayR, displayC)) {
+                if (canDragPiece(displayR, displayC)) {
                     pieceDiv.classList.add('draggable-piece');
                     pieceDiv.draggable = true;
                     (function(dr, dc, draggablePiece) {
@@ -992,6 +1163,86 @@ function updateUI() {
     updateTimerDisplay();
 }
 
+function onSquareClick(row, col) {
+    if (gameOver) return;
+    var premoveState = buildPremovePreviewState();
+
+    if (selectedSquare && isLegalDestination(row, col, possibleMoves)) {
+        if (selectedPiece && selectedPiece.toUpperCase() === 'P' && (row === 0 || row === 7)) {
+            showPromotionModal(selectedSquare[0], selectedSquare[1], row, col, selectedInteractionMode, selectedPiece);
+        } else if (selectedInteractionMode === 'premove') {
+            queuePremove(selectedSquare[0], selectedSquare[1], row, col, null);
+        } else {
+            executeMove(selectedSquare[0], selectedSquare[1], row, col, null);
+        }
+        return;
+    }
+
+    if (canControlPiece(row, col)) {
+        setSelection(row, col, legalMoves(row, col), 'live', board[row][col]);
+    } else if (canStartPremove(row, col, premoveState)) {
+        setSelection(row, col, legalMovesForState(premoveState, row, col), 'premove', premoveState.board[row][col]);
+    } else {
+        cleanupDragState();
+    }
+    renderBoard();
+}
+
+function showPromotionModal(fromRow, fromCol, toRow, toCol, mode, movingPiece) {
+    var modal = document.getElementById('promotion-modal');
+    var choices = document.getElementById('promotion-choices');
+    var actionMode = mode || 'live';
+    var color = pieceColor(movingPiece || board[fromRow][fromCol]) || currentTurn;
+    var pieces = color === 'white' ? ['Q','R','B','N'] : ['q','r','b','n'];
+    choices.innerHTML = '';
+    pieces.forEach(function(p) {
+        var btn = document.createElement('div');
+        btn.className = 'promo-btn';
+        var svgWrapper = document.createElement('div');
+        svgWrapper.className = 'promo-svg';
+        svgWrapper.innerHTML = PIECE_SVG[p];
+        btn.appendChild(svgWrapper);
+        btn.addEventListener('click', function() {
+            modal.classList.remove('active');
+            if (actionMode === 'premove') queuePremove(fromRow, fromCol, toRow, toCol, p);
+            else executeMove(fromRow, fromCol, toRow, toCol, p);
+        });
+        choices.appendChild(btn);
+    });
+    modal.classList.add('active');
+}
+
+function updateUI() {
+    var statusEl = document.getElementById('status');
+    if (!gameOver) {
+        var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
+        var icon = currentTurn === 'white' ? '?? : '??;
+        var checkText = isInCheck(board, currentTurn) ? ' ?좑툘 泥댄겕!' : '';
+        var premoveText = premoveQueue.length > 0 ? ' | 프리무브 ' + premoveQueue.length + '수 대기' : '';
+        statusEl.textContent = icon + ' ' + name + '??李⑤?' + checkText + premoveText;
+        statusEl.style.color = isInCheck(board, currentTurn) ? '#ff6b6b' : '';
+    }
+    document.getElementById('white-turn').className = 'turn-indicator' + (currentTurn === 'white' ? ' active' : '');
+    document.getElementById('black-turn').className = 'turn-indicator' + (currentTurn === 'black' ? ' active' : '');
+
+    var pieceOrder = { 'q':0,'r':1,'b':2,'n':3,'p':4,'Q':0,'R':1,'B':2,'N':3,'P':4 };
+    var sortedWhite = capturedByWhite.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
+    var sortedBlack = capturedByBlack.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
+
+    var whiteCapturedEl = document.getElementById('white-captured');
+    whiteCapturedEl.innerHTML = '';
+    sortedWhite.forEach(function(p) {
+        var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; whiteCapturedEl.appendChild(mini);
+    });
+
+    var blackCapturedEl = document.getElementById('black-captured');
+    blackCapturedEl.innerHTML = '';
+    sortedBlack.forEach(function(p) {
+        var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; blackCapturedEl.appendChild(mini);
+    });
+    updateTimerDisplay();
+}
+
 function formatTime(totalSeconds) {
     if (totalSeconds >= 3600) {
         var h = Math.floor(totalSeconds / 3600), m = Math.floor((totalSeconds % 3600) / 60), s = totalSeconds % 60;
@@ -1083,6 +1334,64 @@ function savePGN() {
     downloadTextFile('chess-' + datePart + '.pgn', buildPGN());
 }
 
+function getPGNFilename() {
+    var startedAt = gameStartedAt || new Date();
+    var datePart = String(startedAt.getFullYear()) + String(startedAt.getMonth() + 1).padStart(2, '0') + String(startedAt.getDate()).padStart(2, '0');
+    return 'chess-' + datePart + '.pgn';
+}
+
+function closePGNModal() {
+    var modal = document.getElementById('pgn-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+function openPGNModal() {
+    if (moveHistory.length === 0) {
+        alert('??ν븷 湲곕낫媛 ?놁뒿?덈떎.');
+        return;
+    }
+    if (!gameOver) return;
+
+    var textarea = document.getElementById('pgn-text');
+    if (!textarea) return;
+    textarea.value = buildPGN();
+    document.getElementById('pgn-modal').classList.add('active');
+    textarea.scrollTop = 0;
+    textarea.focus();
+    textarea.select();
+}
+
+function downloadPGN() {
+    var textarea = document.getElementById('pgn-text');
+    var pgnText = textarea && textarea.value ? textarea.value : buildPGN();
+    downloadTextFile(getPGNFilename(), pgnText);
+}
+
+function copyPGN() {
+    var textarea = document.getElementById('pgn-text');
+    if (!textarea) return;
+
+    var text = textarea.value || buildPGN();
+    textarea.value = text;
+    textarea.focus();
+    textarea.select();
+
+    function notifyCopied() {
+        alert('PGN이 클립보드에 복사되었습니다.');
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(notifyCopied).catch(function() {
+            document.execCommand('copy');
+            notifyCopied();
+        });
+        return;
+    }
+
+    document.execCommand('copy');
+    notifyCopied();
+}
+
 function updateTimerDisplay() {
     var wEl = document.getElementById('white-timer'), bEl = document.getElementById('black-timer');
     if (gameSetting.unlimited) {
@@ -1119,6 +1428,7 @@ function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerI
 function undoMove() {
     if (boardHistory.length === 0) return;
     cleanupDragState();
+    clearPremoveQueue();
     finalGameResult = '*';
     // ★ AI가 생각 중이면 중단
     if (aiThinking && stockfishWorker) {
@@ -1145,6 +1455,7 @@ function undoMove() {
     selectedSquare = null; possibleMoves = []; gameOver = false;
     turnStartedAt = Date.now();
     document.getElementById('gameover-modal').classList.remove('active');
+    closePGNModal();
     if (!gameSetting.unlimited && firstMoveMade) startTimer();
     renderBoard(); updateUI();
 }
@@ -1153,6 +1464,7 @@ function flipBoard() { isFlipped = !isFlipped; renderBoard(); }
 
 function initGame() {
     cleanupDragState();
+    clearPremoveQueue();
     gameStartedAt = new Date();
     turnStartedAt = Date.now();
     finalGameResult = '*';
@@ -1180,6 +1492,7 @@ function initGame() {
 
     document.getElementById('move-list').innerHTML = '';
     document.getElementById('gameover-modal').classList.remove('active');
+    closePGNModal();
     document.getElementById('promotion-modal').classList.remove('active');
     stopTimer();
     
@@ -1210,7 +1523,9 @@ function initGame() {
 
 function restartGame() {
     document.getElementById('gameover-modal').classList.remove('active');
+    closePGNModal();
     cleanupDragState();
+    clearPremoveQueue();
     finalGameResult = '*';
     if (gameSetting.mode === 'ai' && stockfishWorker) {
         stockfishWorker.postMessage('stop');
