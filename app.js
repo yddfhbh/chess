@@ -105,10 +105,14 @@ var onlineState = {
     queueRef: null,
     assignmentRef: null,
     assignmentListener: null,
+    presenceRef: null,
+    presenceDisconnect: null,
+    presenceField: null,
     gameRevision: -1,
     applyingRemoteState: false,
     syncingState: false,
-    lastSyncedStateHash: null
+    lastSyncedStateHash: null,
+    claimingDisconnectWin: false
 };
 
 // ★ Stockfish 엔진 초기화
@@ -545,17 +549,87 @@ function getOnlineGameOverTitle() {
     if (finalGameTermination === '기물 부족') return '기물 부족!';
     if (finalGameTermination === '50수 규칙') return '50수 규칙!';
     if (finalGameTermination === '시간 초과') return '시간 초과! ⏰';
+    if (finalGameTermination === '기권') return '기권';
     if (finalGameResult === '1/2-1/2') return '무승부';
     return '게임 종료';
 }
 
 function getOnlineGameOverMessage() {
-    if (finalGameTermination === '체크메이트' || finalGameTermination === '시간 초과') {
+    if (finalGameResult === '1-0' || finalGameResult === '0-1') {
         var winnerName = finalGameResult === '1-0' ? gameSetting.whiteName : gameSetting.blackName;
         return winnerName + '의 승리입니다!';
     }
     if (finalGameResult === '1/2-1/2') return '무승부입니다.';
     return finalGameTermination || '게임이 종료되었습니다.';
+}
+
+function getOnlinePresenceField(color) {
+    if (color === 'white') return 'whiteConnected';
+    if (color === 'black') return 'blackConnected';
+    return null;
+}
+
+function clearOnlinePresence() {
+    if (onlineState.presenceDisconnect && onlineState.presenceDisconnect.cancel) {
+        onlineState.presenceDisconnect.cancel().catch(function() {});
+    }
+    onlineState.presenceRef = null;
+    onlineState.presenceDisconnect = null;
+    onlineState.presenceField = null;
+}
+
+function updateOnlinePresence(room) {
+    if (!firebaseDb || !onlineState.roomId || !onlineState.playerColor || !room || room.status !== 'playing') {
+        clearOnlinePresence();
+        return;
+    }
+    var field = getOnlinePresenceField(onlineState.playerColor);
+    if (!field) return;
+    if (!onlineState.presenceRef || onlineState.presenceField !== field) {
+        clearOnlinePresence();
+        onlineState.presenceField = field;
+        onlineState.presenceRef = firebaseDb.ref('rooms/' + onlineState.roomId + '/' + field);
+        onlineState.presenceDisconnect = onlineState.presenceRef.onDisconnect();
+        onlineState.presenceDisconnect.set(false).catch(function() {});
+    }
+    if (room[field] !== true) {
+        onlineState.presenceRef.set(true).catch(function() {});
+    }
+}
+
+function didOpponentLeaveOnlineRoom(room) {
+    if (!room || room.status !== 'playing' || !onlineState.playerColor) return false;
+    var myField = getOnlinePresenceField(onlineState.playerColor);
+    var opponentField = getOnlinePresenceField(opponentColor(onlineState.playerColor));
+    if (!myField || !opponentField) return false;
+    if (typeof room[myField] !== 'boolean' || typeof room[opponentField] !== 'boolean') return false;
+    return room[myField] === true && room[opponentField] === false;
+}
+
+function finalizeOnlineWinByOpponentLeaving() {
+    if (!firebaseDb || !onlineState.roomId || !onlineState.playerColor || onlineState.claimingDisconnectWin || gameOver) return;
+    onlineState.claimingDisconnectWin = true;
+    setLobbyOnlineMessage('상대 연결 종료를 감지했습니다. 승리 처리 중입니다.');
+    var payload = serializeCurrentGameState();
+    payload.finalGameResult = onlineState.playerColor === 'white' ? '1-0' : '0-1';
+    payload.finalGameTermination = '기권';
+    payload.gameEndedAt = Date.now();
+    firebaseDb.ref('rooms/' + onlineState.roomId).transaction(function(current) {
+        if (!current || current.status !== 'playing') return current;
+        var myField = getOnlinePresenceField(onlineState.playerColor);
+        var opponentField = getOnlinePresenceField(opponentColor(onlineState.playerColor));
+        if (!myField || !opponentField) return current;
+        if (current[myField] !== true || current[opponentField] !== false) return current;
+        current.status = 'finished';
+        current.gameRevision = (current.gameRevision || 0) + 1;
+        current.updatedAt = Date.now();
+        current.gameState = payload;
+        return current;
+    }).catch(function(err) {
+        setLobbyOnlineMessage('상대 이탈 처리 실패: ' + err.message);
+    }).finally(function() {
+        onlineState.claimingDisconnectWin = false;
+    });
 }
 
 function applyOnlineGameState(serializedState) {
@@ -615,10 +689,12 @@ function enterOnlineGameFromRoom(room) {
     document.getElementById('lobby-screen').classList.remove('active');
     document.getElementById('game-screen').classList.add('active');
     isFlipped = onlineState.playerColor === 'black';
+    updateOnlinePresence(room);
     applyOnlineGameState(room.gameState || buildInitialOnlineGameState());
 }
 
 function leaveOnlineRoom(reasonText) {
+    clearOnlinePresence();
     if (!firebaseDb || !onlineState.roomId || !onlineState.roomData) return Promise.resolve();
     var room = onlineState.roomData;
     if (room.status === 'waiting' && room.hostUid === onlineState.authUid) {
@@ -626,18 +702,15 @@ function leaveOnlineRoom(reasonText) {
     }
     if (room.status === 'playing') {
         var result = onlineState.playerColor === 'white' ? '0-1' : '1-0';
+        var payload = serializeCurrentGameState();
+        payload.finalGameResult = result;
+        payload.finalGameTermination = reasonText || '기권';
+        payload.gameEndedAt = Date.now();
         return firebaseDb.ref('rooms/' + onlineState.roomId).update({
             status: 'finished',
             gameRevision: (room.gameRevision || 0) + 1,
             updatedAt: firebase.database.ServerValue.TIMESTAMP,
-            gameState: {
-                state: serializeCurrentGameState().state,
-                moveHistory: moveHistory,
-                finalGameResult: result,
-                finalGameTermination: reasonText || '상대가 대국을 종료했습니다.',
-                gameStartedAt: gameStartedAt ? gameStartedAt.getTime() : Date.now(),
-                gameEndedAt: Date.now()
-            }
+            gameState: payload
         });
     }
     return Promise.resolve();
@@ -645,6 +718,7 @@ function leaveOnlineRoom(reasonText) {
 
 function resetOnlineSessionState() {
     onlineState.enabled = false;
+    clearOnlinePresence();
     if (onlineState.roomRef && onlineState.roomListener) onlineState.roomRef.off('value', onlineState.roomListener);
     if (onlineState.assignmentRef && onlineState.assignmentListener) onlineState.assignmentRef.off('value', onlineState.assignmentListener);
     onlineState.roomRef = null;
@@ -654,6 +728,7 @@ function resetOnlineSessionState() {
     onlineState.roomId = null;
     onlineState.roomData = null;
     onlineState.playerColor = null;
+    onlineState.claimingDisconnectWin = false;
     onlineState.roomStarted = false;
     onlineState.inQueue = false;
     onlineState.queueRef = null;
@@ -678,6 +753,7 @@ function subscribeToRoom(roomId) {
         }
         onlineState.roomData = room;
         onlineState.playerColor = room.whiteUid === onlineState.authUid ? 'white' : (room.blackUid === onlineState.authUid ? 'black' : null);
+        updateOnlinePresence(room);
         updateOnlineUI();
         if (room.status === 'waiting') {
             setLobbyOnlineMessage(room.hostUid === onlineState.authUid ? '친구를 기다리는 중입니다.' : '방 참가 처리 중입니다.');
@@ -690,6 +766,9 @@ function subscribeToRoom(roomId) {
             else if (nextRevision !== onlineState.gameRevision) {
                 onlineState.gameRevision = nextRevision;
                 applyOnlineGameState(room.gameState);
+            }
+            if (room.status === 'playing' && didOpponentLeaveOnlineRoom(room)) {
+                finalizeOnlineWinByOpponentLeaving();
             }
         }
     };
@@ -730,6 +809,8 @@ function createInviteRoom() {
             blackUid: null,
             whiteName: nickname,
             blackName: null,
+            whiteConnected: true,
+            blackConnected: false,
             settings: getSelectedTimeSettings(),
             gameRevision: 0,
             gameState: buildInitialOnlineGameState(),
@@ -762,6 +843,8 @@ function joinRoomByCode() {
             room.guestName = nickname;
             room.blackUid = onlineState.authUid;
             room.blackName = nickname;
+            room.whiteConnected = room.whiteConnected !== false;
+            room.blackConnected = true;
             room.status = 'playing';
             return room;
         }).then(function(result) {
@@ -817,6 +900,8 @@ function createRandomRoomWithOpponent(opponent, nickname) {
         blackUid: onlineState.authUid,
         whiteName: opponent.name,
         blackName: nickname,
+        whiteConnected: true,
+        blackConnected: true,
         settings: getSelectedTimeSettings(),
         gameRevision: 0,
         gameState: buildInitialOnlineGameState(),
@@ -1413,8 +1498,11 @@ function startGame() {
 }
 
 function backToLobby() {
+    if (isOnlineMode() && !gameOver && onlineState.roomData && onlineState.roomData.status === 'playing') {
+        resignGame();
+        return;
+    }
     if (isOnlineMode()) {
-        leaveOnlineRoom('상대가 대국을 종료했습니다.').catch(function() {});
         cancelOnlineWaiting();
         resetOnlineSessionState();
     }
@@ -1442,6 +1530,54 @@ function backToLobby() {
     document.getElementById('lobby-screen').classList.add('active');
     gameSetting.mode = 'pvp';
     selectMode('pvp');
+}
+
+function getResigningColor() {
+    if (isOnlineMode()) return onlineState.playerColor;
+    if (gameSetting.mode === 'ai') return gameSetting.playerColor;
+    return currentTurn;
+}
+
+function getWinnerNameByColor(color) {
+    return color === 'white' ? gameSetting.whiteName : gameSetting.blackName;
+}
+
+function getResultByWinnerColor(color) {
+    return color === 'white' ? '1-0' : '0-1';
+}
+
+function applyResignationOutcome(loserColor) {
+    var winnerColor = opponentColor(loserColor);
+    cleanupDragState();
+    clearPremoveQueue();
+    turnStartedAt = null;
+    aiThinking = false;
+    showAIThinking(false);
+    stopTimer();
+    gameOver = true;
+    setGameConclusion(getResultByWinnerColor(winnerColor), '기권');
+    renderBoard();
+    updateUI();
+    showGameOver('기권', getWinnerNameByColor(winnerColor) + '의 승리입니다!');
+}
+
+function resignGame() {
+    if (gameOver) return;
+    var loserColor = getResigningColor();
+    if (!loserColor) return;
+    if (!confirm('기권하시겠습니까?')) return;
+    if (gameSetting.mode === 'ai' && stockfishWorker) {
+        stockfishWorker.postMessage('stop');
+    }
+    if (isOnlineMode()) {
+        leaveOnlineRoom('기권').then(function() {
+            applyResignationOutcome(loserColor);
+        }).catch(function(err) {
+            alert('기권 처리에 실패했습니다: ' + err.message);
+        });
+        return;
+    }
+    applyResignationOutcome(loserColor);
 }
 
 // ============================================================
