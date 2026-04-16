@@ -1,15 +1,44 @@
 // ============================================================
-//  ♟️ 체스 게임 엔진 (순수 JavaScript)
+//  ♟️ 체스 게임 엔진 (순수 JavaScript) - SVG 기물 버전
 // ============================================================
 
-// ── 기물 유니코드 ──
-const PIECES = {
-    K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟',
-    k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙'
+// ── SVG 기물 이미지 (인라인 Data URI) ──
+var PIECE_SVG = {
+    // ── 백 킹 ──
+    K: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6M20 8h5" stroke-linejoin="miter"/><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#fff" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" fill="#fff"/><path d="M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0"/></g></svg>',
+    // ── 백 퀸 ──
+    Q: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="#fff" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm16.5-4.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm-16 0a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm32 0a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm-16 0a2 2 0 1 1-4 0 2 2 0 1 1 4 0z"/><path d="M9 26c8.5-1.5 21-1.5 27 0l2-12-7 11V11l-5.5 13.5-3-15-3 15L14 11v14L7 14l2 12z" stroke-linecap="butt"/><path d="M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt"/><path d="M11.5 30c3.5-1 18.5-1 22 0M12 33.5c6-1 15-1 21 0" fill="none"/></g></svg>',
+    // ── 백 룩 ──
+    R: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="#fff" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zm3-3v-4h21v4H12zm-1-22V9h4v2h5V9h5v2h5V9h4v5" stroke-linecap="butt"/><path d="M34 14l-3 3H14l-3-3"/><path d="M15 17v7h15v-7" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M14 29.5v-13h17v13H14z" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M14 16.5L11 14h23l-3 2.5H14zM11 14V9h4v2h5V9h5v2h5V9h4v5H11z" stroke-linecap="butt"/><path d="M12 35.5h21m-20-4h19m-18-2h17" fill="none" stroke-linejoin="miter"/></g></svg>',
+    // ── 백 비숍 ──
+    B: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#fff" stroke-linecap="butt"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2z"/><path d="M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z"/><path d="M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z"/></g><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke-linejoin="miter"/></g></svg>',
+    // ── 백 나이트 ──
+    N: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21" fill="#fff"/><path d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3" fill="#fff"/><path d="M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0zm5.433-9.75a.5 1.5 30 1 1-.866-.5.5 1.5 30 1 1 .866.5z" fill="#000"/></g></svg>',
+    // ── 백 폰 ──
+    P: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03C15.41 27.09 11 31.58 11 39.5H34c0-7.92-4.41-12.41-7.41-13.47C28.06 24.84 29 23.03 29 21c0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg>',
+
+    // ── 흑 킹 ──
+    k: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6" stroke-linejoin="miter"/><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#000" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" fill="#000"/><path d="M20 8h5" stroke-linejoin="miter"/><path d="M32 29.5s8.5-4 6.03-9.65C34.15 14 25 18 22.5 24.5l.01 2.1-.01-2.1C20 18 9.906 14 6.997 19.85c-2.497 5.65 4.853 9 4.853 9" stroke="#fff"/><path d="M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0" stroke="#fff"/></g></svg>',
+    // ── 흑 퀸 ──
+    q: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#000" stroke="none"><circle cx="6" cy="12" r="2.75"/><circle cx="14" cy="9" r="2.75"/><circle cx="22.5" cy="8" r="2.75"/><circle cx="31" cy="9" r="2.75"/><circle cx="39" cy="12" r="2.75"/></g><path d="M9 26c8.5-1.5 21-1.5 27 0l2.5-12.5L31 25l-.3-14.1-5.2 13.6-3-14.5-3 14.5-5.2-13.6L14 25 6.5 13.5 9 26z" fill="#000" stroke-linecap="butt"/><path d="M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" fill="#000" stroke-linecap="butt"/><path d="M11 38.5a35 35 1 0 0 23 0" fill="none" stroke-linecap="butt"/><path d="M11 29a35 35 1 0 1 23 0" fill="none" stroke="#fff"/><path d="M12.5 31.5h20" fill="none" stroke="#fff"/><path d="M11.5 34.5a35 35 1 0 0 22 0" fill="none" stroke="#fff"/><path d="M10.5 37.5a35 35 1 0 0 24 0" fill="none" stroke="#fff"/></g></svg>',
+    // ── 흑 룩 ──
+    r: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zm3.5-7l1.5-2.5h17l1.5 2.5h-20zm-.5 4v-4h21v4H12z" stroke-linecap="butt" fill="#000"/><path d="M14 29.5v-13h17v13H14z" stroke-linecap="butt" stroke-linejoin="miter" fill="#000"/><path d="M14 16.5L11 14h23l-3 2.5H14zM11 14V9h4v2h5V9h5v2h5V9h4v5H11z" stroke-linecap="butt" fill="#000"/><path d="M12 35.5h21m-20-4h19m-18-2h17" fill="none" stroke="#fff" stroke-width="1" stroke-linejoin="miter"/></g></svg>',
+    // ── 흑 비숍 ──
+    b: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#000" stroke-linecap="butt"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2z"/><path d="M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z"/><path d="M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z"/></g><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke="#fff" stroke-linejoin="miter"/></g></svg>',
+    // ── 흑 나이트 ──
+    n: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21" fill="#000"/><path d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3" fill="#000"/><path d="M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0zm5.433-9.75a.5 1.5 30 1 1-.866-.5.5 1.5 30 1 1 .866.5z" fill="#fff" stroke="#fff"/></g></svg>',
+    // ── 흑 폰 ──
+    p: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03C15.41 27.09 11 31.58 11 39.5H34c0-7.92-4.41-12.41-7.41-13.47C28.06 24.84 29 23.03 29 21c0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#000" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg>'
+};
+
+// 유니코드 폴백 (프로모션 모달용)
+var PIECES_UNICODE = {
+    K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙',
+    k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟'
 };
 
 // ── 초기 보드 배치 ──
-const INITIAL_BOARD = [
+var INITIAL_BOARD = [
     ['r','n','b','q','k','b','n','r'],
     ['p','p','p','p','p','p','p','p'],
     ['','','','','','','',''],
@@ -21,7 +50,7 @@ const INITIAL_BOARD = [
 ];
 
 // ── 게임 설정 (로비에서 결정) ──
-let gameSetting = {
+var gameSetting = {
     mode: 'pvp',
     minutes: 5,
     increment: 0,
@@ -31,26 +60,26 @@ let gameSetting = {
 };
 
 // ── 게임 상태 ──
-let board = [];
-let currentTurn = 'white';
-let selectedSquare = null;
-let possibleMoves = [];
-let moveHistory = [];
-let boardHistory = [];
-let castlingRights = { K: true, Q: true, k: true, q: true };
-let enPassantTarget = null;
-let halfMoveClock = 0;
-let fullMoveNumber = 1;
-let whiteTime = 600;
-let blackTime = 600;
-let timerInterval = null;
-let gameOver = false;
-let isFlipped = false;
-let capturedByWhite = [];
-let capturedByBlack = [];
-let lastMoveFrom = null;
-let lastMoveTo = null;
-let firstMoveMade = false;
+var board = [];
+var currentTurn = 'white';
+var selectedSquare = null;
+var possibleMoves = [];
+var moveHistory = [];
+var boardHistory = [];
+var castlingRights = { K: true, Q: true, k: true, q: true };
+var enPassantTarget = null;
+var halfMoveClock = 0;
+var fullMoveNumber = 1;
+var whiteTime = 600;
+var blackTime = 600;
+var timerInterval = null;
+var gameOver = false;
+var isFlipped = false;
+var capturedByWhite = [];
+var capturedByBlack = [];
+var lastMoveFrom = null;
+var lastMoveTo = null;
+var firstMoveMade = false;
 
 // ============================================================
 //  로비 (시작 화면) 로직
@@ -58,17 +87,15 @@ let firstMoveMade = false;
 
 function selectMode(mode) {
     if (mode !== 'pvp') return;
-    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.mode-btn').forEach(function(btn) { btn.classList.remove('active'); });
     document.querySelector('.mode-btn[data-mode="' + mode + '"]').classList.add('active');
     gameSetting.mode = mode;
 }
 
 function applyPreset(minutes, increment, el) {
-    // 프리셋 버튼 활성화
-    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.preset-btn').forEach(function(btn) { btn.classList.remove('active'); });
     if (el) el.classList.add('active');
 
-    // 입력 필드 업데이트
     document.getElementById('custom-minutes').value = minutes;
     document.getElementById('custom-increment').value = increment;
 
@@ -99,10 +126,8 @@ function updateCustomPreset() {
     gameSetting.increment = increment;
     gameSetting.unlimited = (minutes === 0 && increment === 0);
 
-    // 프리셋 버튼 매칭 해제
-    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.preset-btn').forEach(function(btn) { btn.classList.remove('active'); });
 
-    // 매칭되는 프리셋 찾기
     var presets = document.querySelectorAll('.preset-btn');
     presets.forEach(function(btn) {
         var m = btn.getAttribute('data-minutes');
@@ -206,10 +231,10 @@ function findKing(b, color) {
 }
 
 function isSquareAttacked(b, row, col, byColor) {
-    var knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+    var knightOffsets = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
     var knight = byColor === 'white' ? 'N' : 'n';
-    for (var i = 0; i < knightMoves.length; i++) {
-        var nr = row + knightMoves[i][0], nc = col + knightMoves[i][1];
+    for (var i = 0; i < knightOffsets.length; i++) {
+        var nr = row + knightOffsets[i][0], nc = col + knightOffsets[i][1];
         if (inBounds(nr, nc) && b[nr][nc] === knight) return true;
     }
 
@@ -326,7 +351,6 @@ function pseudoLegalMoves(b, row, col, castling, epTarget) {
                 var nr = row + dr, nc = col + dc;
                 if (inBounds(nr, nc)) addMove(nr, nc);
             }
-        // 캐슬링
         if (color === 'white' && row === 7 && col === 4) {
             if (castling.K && b[7][5]==='' && b[7][6]==='' && b[7][7]==='R'
                 && !isSquareAttacked(b,7,4,'black') && !isSquareAttacked(b,7,5,'black') && !isSquareAttacked(b,7,6,'black'))
@@ -359,12 +383,10 @@ function legalMoves(row, col) {
         var tr = pseudo[i][0], tc = pseudo[i][1];
         var testBoard = cloneBoard(board);
 
-        // 앙파상 캡처
         if (piece.toUpperCase() === 'P' && enPassantTarget && tr === enPassantTarget[0] && tc === enPassantTarget[1]) {
             var capturedRow = color === 'white' ? tr + 1 : tr - 1;
             testBoard[capturedRow][tc] = '';
         }
-        // 캐슬링 룩 이동
         if (piece.toUpperCase() === 'K' && Math.abs(tc - col) === 2) {
             if (tc === 6) { testBoard[row][5] = testBoard[row][7]; testBoard[row][7] = ''; }
             if (tc === 2) { testBoard[row][3] = testBoard[row][0]; testBoard[row][0] = ''; }
@@ -419,7 +441,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
         else capturedByBlack.push(captured);
     }
 
-    // 앙파상
     if (piece.toUpperCase() === 'P' && enPassantTarget && toRow === enPassantTarget[0] && toCol === enPassantTarget[1]) {
         var capturedRow = color === 'white' ? toRow + 1 : toRow - 1;
         var epCaptured = board[capturedRow][toCol];
@@ -429,7 +450,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
         isCapture = true;
     }
 
-    // 캐슬링
     if (piece.toUpperCase() === 'K' && Math.abs(toCol - fromCol) === 2) {
         isCastle = true;
         if (toCol === 6) { board[fromRow][5] = board[fromRow][7]; board[fromRow][7] = ''; moveNotation = 'O-O'; }
@@ -439,19 +459,16 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     board[toRow][toCol] = piece;
     board[fromRow][fromCol] = '';
 
-    // 앙파상 타겟 설정
     if (piece.toUpperCase() === 'P' && Math.abs(toRow - fromRow) === 2) {
         enPassantTarget = [(fromRow + toRow) / 2, fromCol];
     } else {
         enPassantTarget = null;
     }
 
-    // 프로모션
     if (piece.toUpperCase() === 'P' && (toRow === 0 || toRow === 7)) {
         if (promotionPiece) board[toRow][toCol] = promotionPiece;
     }
 
-    // 캐슬링 권한 업데이트
     if (piece === 'K') { castlingRights.K = false; castlingRights.Q = false; }
     if (piece === 'k') { castlingRights.k = false; castlingRights.q = false; }
     if (piece === 'R' && fromRow === 7 && fromCol === 7) castlingRights.K = false;
@@ -463,7 +480,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     if (toRow === 0 && toCol === 7) castlingRights.k = false;
     if (toRow === 0 && toCol === 0) castlingRights.q = false;
 
-    // 기보 표기
     if (!isCastle) {
         var files = 'abcdefgh';
         var ranks = '87654321';
@@ -483,7 +499,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
     if (piece.toUpperCase() === 'P' || isCapture) halfMoveClock = 0;
     else halfMoveClock++;
 
-    // 인크리먼트 추가
     if (!gameSetting.unlimited && firstMoveMade && gameSetting.increment > 0) {
         if (color === 'white') whiteTime += gameSetting.increment;
         else blackTime += gameSetting.increment;
@@ -520,7 +535,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece) {
         showGameOver('50수 규칙!', '무승부입니다.');
     }
 
-    // 타이머 시작 (첫 수 이후)
     if (!gameSetting.unlimited && !gameOver && !timerInterval) {
         startTimer();
     }
@@ -549,7 +563,7 @@ function addMoveToHistory(notation, color) {
     moveList.scrollTop = moveList.scrollHeight;
 }
 
-// ── 보드 렌더링 ──
+// ── 보드 렌더링 (SVG 기물) ──
 function renderBoard() {
     var chessboard = document.getElementById('chessboard');
     chessboard.innerHTML = '';
@@ -588,7 +602,13 @@ function renderBoard() {
             if (piece && piece.toUpperCase() === 'K' && isInCheck(board, pieceColor(piece)))
                 square.classList.add('check');
 
-            if (piece) square.textContent = PIECES[piece];
+            // SVG 기물 렌더링
+            if (piece && PIECE_SVG[piece]) {
+                var pieceDiv = document.createElement('div');
+                pieceDiv.className = 'piece-svg';
+                pieceDiv.innerHTML = PIECE_SVG[piece];
+                square.appendChild(pieceDiv);
+            }
 
             (function(dr, dc) {
                 square.addEventListener('click', function() { onSquareClick(dr, dc); });
@@ -666,20 +686,22 @@ function onSquareClick(row, col) {
     renderBoard();
 }
 
-// ── 프로모션 모달 ──
+// ── 프로모션 모달 (SVG 기물) ──
 function showPromotionModal(fromRow, fromCol, toRow, toCol) {
     var modal = document.getElementById('promotion-modal');
     var choices = document.getElementById('promotion-choices');
     var color = currentTurn;
     var pieces = color === 'white' ? ['Q','R','B','N'] : ['q','r','b','n'];
-    var icons = color === 'white' ? ['♕','♖','♗','♘'] : ['♛','♜','♝','♞'];
 
     choices.innerHTML = '';
     for (var i = 0; i < pieces.length; i++) {
-        (function(p, icon) {
+        (function(p) {
             var btn = document.createElement('div');
             btn.className = 'promo-btn';
-            btn.textContent = icon;
+            var svgWrapper = document.createElement('div');
+            svgWrapper.className = 'promo-svg';
+            svgWrapper.innerHTML = PIECE_SVG[p];
+            btn.appendChild(svgWrapper);
             btn.addEventListener('click', function() {
                 modal.classList.remove('active');
                 executeMove(fromRow, fromCol, toRow, toCol, p);
@@ -687,7 +709,7 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol) {
                 possibleMoves = [];
             });
             choices.appendChild(btn);
-        })(pieces[i], icons[i]);
+        })(pieces[i]);
     }
 
     modal.classList.add('active');
@@ -714,12 +736,28 @@ function updateUI() {
     document.getElementById('white-turn').className = 'turn-indicator' + (currentTurn === 'white' ? ' active' : '');
     document.getElementById('black-turn').className = 'turn-indicator' + (currentTurn === 'black' ? ' active' : '');
 
+    // 잡힌 기물 (미니 SVG)
     var pieceOrder = { 'q':0,'r':1,'b':2,'n':3,'p':4,'Q':0,'R':1,'B':2,'N':3,'P':4 };
     var sortedWhite = capturedByWhite.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
     var sortedBlack = capturedByBlack.slice().sort(function(a,b) { return pieceOrder[a]-pieceOrder[b]; });
 
-    document.getElementById('white-captured').textContent = sortedWhite.map(function(p) { return PIECES[p]; }).join('');
-    document.getElementById('black-captured').textContent = sortedBlack.map(function(p) { return PIECES[p]; }).join('');
+    var whiteCapturedEl = document.getElementById('white-captured');
+    whiteCapturedEl.innerHTML = '';
+    for (var i = 0; i < sortedWhite.length; i++) {
+        var mini = document.createElement('span');
+        mini.className = 'captured-piece-svg';
+        mini.innerHTML = PIECE_SVG[sortedWhite[i]];
+        whiteCapturedEl.appendChild(mini);
+    }
+
+    var blackCapturedEl = document.getElementById('black-captured');
+    blackCapturedEl.innerHTML = '';
+    for (var i = 0; i < sortedBlack.length; i++) {
+        var mini = document.createElement('span');
+        mini.className = 'captured-piece-svg';
+        mini.innerHTML = PIECE_SVG[sortedBlack[i]];
+        blackCapturedEl.appendChild(mini);
+    }
 
     updateTimerDisplay();
 }
