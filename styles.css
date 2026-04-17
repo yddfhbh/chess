@@ -1590,6 +1590,304 @@ body {
     }
 }
 
+@media (max-width: 768px) {
+    :root {
+        --sq-size: min(58px, calc((100vw - 38px) / 8));
+    }
+
+    #intro-screen.active {
+        align-items: flex-start;
+        padding: 16px;
+    }
+
+    .intro-shell {
+        gap: 18px;
+        padding: 20px 16px 24px;
+        border-radius: 22px;
+    }
+
+    .intro-badge {
+        width: 100%;
+        margin: 0;
+        padding: 10px 14px;
+        border-radius: 18px;
+        white-space: normal;
+        text-align: left;
+        line-height: 1.45;
+    }
+
+    .intro-copy {
+        margin-top: 14px;
+        padding: 18px 18px 20px;
+        border-radius: 20px;
+        font-size: 1rem;
+        line-height: 1.62;
+    }
+
+    .intro-copy::before {
+        right: 20px;
+        bottom: -8px;
+        width: 18px;
+        height: 18px;
+    }
+
+    .intro-visual-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .intro-board-preview {
+        max-width: none;
+        border-radius: 16px;
+    }
+
+    .intro-side-stack {
+        gap: 12px;
+    }
+
+    .intro-feature {
+        min-height: 56px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        font-size: 0.92rem;
+    }
+
+    .intro-visual-panel .intro-actions {
+        width: 100%;
+        margin: 0;
+    }
+
+    .modal-btn.intro-start-btn {
+        min-height: 74px;
+        border-radius: 16px;
+        font-size: clamp(1.15rem, 3.8vw, 1.55rem);
+        letter-spacing: -0.03em;
+    }
+
+    .lobby-container {
+        padding: 14px 12px 28px;
+    }
+
+    .lobby-section {
+        padding: 18px 16px;
+        margin-bottom: 14px;
+        border-radius: 18px;
+    }
+
+    .mode-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mode-btn {
+        align-items: flex-start;
+        min-height: 104px;
+        padding: 18px 14px;
+        text-align: left;
+    }
+
+    .mode-btn .mode-icon {
+        margin-bottom: 10px;
+        font-size: 1.7em;
+    }
+
+    .local-mode-panel {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+    }
+
+    .local-mode-btn,
+    .online-btn,
+    .preset-btn,
+    .ai-color-btn,
+    .ai-level-step,
+    .modal-btn {
+        min-height: 48px;
+    }
+
+    .ai-settings,
+    .online-settings {
+        padding: 14px;
+        border-radius: 14px;
+    }
+
+    .ai-color-select {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .online-actions,
+    .online-join-row {
+        grid-template-columns: 1fr;
+    }
+
+    .online-room-actions {
+        justify-content: stretch;
+    }
+
+    .online-room-actions .online-btn,
+    .step-actions .modal-btn {
+        width: 100%;
+    }
+
+    .step-actions {
+        justify-content: stretch;
+    }
+
+    .time-presets {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .custom-time {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 14px;
+    }
+
+    .time-input-group,
+    .time-adjuster {
+        justify-content: center;
+    }
+
+    #game-screen.active {
+        align-items: stretch;
+        justify-content: flex-start;
+        min-height: 100vh;
+        height: auto;
+        overflow-y: auto;
+        padding-bottom: 18px;
+    }
+
+    .game-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 10px 12px 24px;
+    }
+
+    .board-area {
+        width: 100%;
+    }
+
+    .board-wrapper {
+        justify-content: center;
+        gap: 2px;
+    }
+
+    .board-labels-file {
+        margin-left: 22px;
+        font-size: 0.75em;
+    }
+
+    .board-labels-rank {
+        padding: 0 3px;
+        font-size: 0.75em;
+    }
+
+    .ai-thinking-indicator {
+        min-height: 42px;
+        font-size: 0.82em;
+        margin-top: 8px;
+    }
+
+    .side-panel {
+        width: 100%;
+        max-width: none;
+        height: auto;
+        gap: 12px;
+    }
+
+    .side-panel > .player-card:first-of-type {
+        order: 1;
+    }
+
+    .side-panel > .player-card:last-of-type {
+        order: 2;
+    }
+
+    .side-panel > .controls {
+        order: 3;
+    }
+
+    .side-panel > .move-history {
+        order: 4;
+    }
+
+    .player-card {
+        padding: 12px;
+        gap: 10px;
+        border-radius: 16px;
+    }
+
+    .player-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 1.15em;
+    }
+
+    .player-name {
+        font-size: 0.95em;
+    }
+
+    .player-timer {
+        font-size: 1.25em;
+    }
+
+    .captured-pieces {
+        min-height: 20px;
+    }
+
+    .controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .ctrl-btn {
+        min-height: 46px;
+        padding: 12px 10px;
+        border-radius: 12px;
+        font-size: 0.82em;
+    }
+
+    .move-history {
+        min-height: 180px;
+        max-height: 220px;
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    .move-entry {
+        grid-template-columns: 30px 1fr 1fr;
+        padding: 4px 0;
+    }
+
+    .modal-content,
+    .local-player-modal,
+    .online-time-modal,
+    .resign-modal {
+        width: min(92vw, 520px);
+        min-width: 0;
+        padding: 24px 18px;
+        border-radius: 18px;
+    }
+
+    .modal-buttons {
+        flex-direction: column;
+    }
+
+    .modal-buttons .modal-btn {
+        width: 100%;
+    }
+
+    .pgn-modal-content {
+        width: calc(100vw - 20px);
+    }
+}
+
 @media (max-width: 500px) {
     #intro-screen.active {
         padding: 14px;
@@ -1609,25 +1907,71 @@ body {
     }
 
     :root {
-        --sq-size: calc((100vw - 50px) / 8);
+        --sq-size: min(46px, calc((100vw - 30px) / 8));
     }
-    
-    .lobby-container { padding: 15px 10px; }
-    .mode-grid { grid-template-columns: 1fr; }
-    .local-mode-panel {
-        flex-direction: column;
-        align-items: stretch;
+
+    .intro-shell {
+        border-radius: 18px;
+        padding: 18px 12px 22px;
     }
-    .time-presets { grid-template-columns: repeat(3, 1fr); }
-    .player-inputs { grid-template-columns: 1fr; }
+
+    .intro-badge {
+        font-size: 0.82em;
+    }
+
+    .intro-copy {
+        padding: 16px;
+        border-radius: 18px;
+        font-size: 0.95rem;
+    }
+
+    .intro-copy::before {
+        right: 16px;
+        width: 16px;
+        height: 16px;
+    }
+
+    .modal-btn.intro-start-btn {
+        min-height: 68px;
+        font-size: clamp(1.02rem, 4.2vw, 1.26rem);
+    }
+
+    .lobby-container { padding: 12px 10px 24px; }
+    .player-inputs,
+    .local-player-form { grid-template-columns: 1fr; }
     .ai-level-controls { grid-template-columns: 40px 1fr 40px; }
     .ai-level-step { width: 40px; height: 40px; }
     .online-auth-row { flex-direction: column; }
-    
-    .side-panel { width: 100%; }
-    
-    .player-timer { font-size: 1.2em; }
+    .controls { grid-template-columns: 1fr; }
+    .player-timer { font-size: 1.16em; }
     .ctrl-btn { font-size: 0.8em; padding: 8px; }
-    .modal-content { padding: 24px 18px; min-width: 0; width: calc(100vw - 24px); }
+    .move-history { max-height: 190px; }
+    .modal-content { width: calc(100vw - 24px); }
     .pgn-textarea { min-height: 220px; }
+}
+
+@media (max-width: 380px) {
+    :root {
+        --sq-size: min(40px, calc((100vw - 24px) / 8));
+    }
+
+    .intro-feature {
+        min-height: 52px;
+        font-size: 0.88rem;
+    }
+
+    .time-presets {
+        grid-template-columns: 1fr;
+    }
+
+    .player-card {
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        display: grid;
+        align-items: center;
+    }
+
+    .player-avatar {
+        width: 32px;
+        height: 32px;
+    }
 }
