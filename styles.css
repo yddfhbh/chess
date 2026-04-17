@@ -195,6 +195,14 @@ body {
     display: block;
 }
 
+.ai-settings-step {
+    display: none;
+}
+
+.ai-settings-step.active {
+    display: block;
+}
+
 .online-settings {
     margin-top: 15px;
     padding: 15px;
@@ -362,6 +370,29 @@ body {
     color: var(--text-secondary);
     font-size: 0.85em;
     line-height: 1.4;
+}
+
+.step-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.time-settings-panel {
+    margin-top: 14px;
+}
+
+.time-panel-heading {
+    margin-bottom: 12px;
+    font-size: 0.98em;
+    color: var(--gold);
+}
+
+.time-panel-title {
+    margin: 18px 0 12px;
+    font-size: 0.95em;
+    color: var(--text-secondary);
 }
 
 .ai-settings h3 {
@@ -695,7 +726,7 @@ body {
     justify-content: center;
     align-items: center;
     gap: 25px;
-    padding: 10px 20px;
+    padding: 28px 20px 18px;
     max-width: 100%;
     width: 100%;
     height: 100%;
@@ -847,6 +878,7 @@ body {
 }
 
 .status-bar {
+    display: none;
     margin-top: 8px;
     padding: 6px 20px;
     background: var(--bg-card);
@@ -1186,6 +1218,48 @@ body {
     width: min(calc(100vw - 24px), 420px);
 }
 
+.local-player-modal {
+    width: min(calc(100vw - 24px), 460px);
+    transform: scale(0.85);
+    transform-origin: center center;
+}
+
+.online-time-modal {
+    width: min(calc(100vw - 24px), 520px);
+    transform: scale(0.85);
+    transform-origin: center center;
+}
+
+.local-player-form {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 24px;
+    text-align: left;
+}
+
+.local-player-input-group label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.local-player-input-group input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 10px;
+    background: rgba(0,0,0,0.24);
+    color: var(--text-primary);
+    font-size: 0.98em;
+}
+
+.local-player-input-group input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(240, 208, 96, 0.08);
+}
+
 .modal-inline-error {
     display: none;
     margin: -10px 0 18px;
@@ -1255,7 +1329,7 @@ body {
         flex-direction: column;
         align-items: center;
         gap: 10px;
-        padding: 10px;
+        padding: 18px 10px 10px;
     }
     
     :root {

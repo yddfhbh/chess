@@ -37,6 +37,16 @@ var gameSetting = {
     playerColor: 'white'    // ★ 플레이어가 맡는 색상
 };
 
+var localPlayerConfig = {
+    whiteName: '',
+    blackName: ''
+};
+
+var aiSettingsStep = 'config';
+var onlineTimeAction = null;
+var localPlayerModalTimeBackup = null;
+var onlineTimeModalBackup = null;
+
 var AI_LEVEL_MIN = 1;
 var AI_LEVEL_MAX = 20;
 
@@ -349,6 +359,79 @@ function requireOnlineNickname() {
     return nickname;
 }
 
+function sanitizePlayerNameInput(value) {
+    var trimmed = value && typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) return '';
+    return trimmed.slice(0, 20);
+}
+
+function getLocalPlayerDefaultName(color) {
+    return color === 'white' ? '백 (White)' : '흑 (Black)';
+}
+
+function getLocalPlayerName(color, fallback) {
+    var defaultName = getLocalPlayerDefaultName(color);
+    var configuredName = color === 'white' ? localPlayerConfig.whiteName : localPlayerConfig.blackName;
+    var resolvedName = sanitizePlayerNameInput(configuredName) || defaultName;
+    if (fallback && resolvedName === defaultName) return fallback;
+    return resolvedName;
+}
+
+function syncLocalPlayerModalInputs() {
+    var whiteInput = document.getElementById('local-white-name');
+    var blackInput = document.getElementById('local-black-name');
+    if (whiteInput) whiteInput.value = localPlayerConfig.whiteName || '';
+    if (blackInput) blackInput.value = localPlayerConfig.blackName || '';
+}
+
+function setLocalPlayerModalError(message) {
+    var errorEl = document.getElementById('local-player-modal-error');
+    if (!errorEl) return;
+    errorEl.textContent = message || '';
+    errorEl.classList.toggle('visible', !!message);
+}
+
+function openLocalPlayerModal() {
+    localPlayerModalTimeBackup = getSelectedTimeSettings();
+    syncLocalPlayerModalInputs();
+    syncTimeSettingsUI();
+    setLocalPlayerModalError('');
+    document.getElementById('local-player-modal').classList.add('active');
+
+    var whiteInput = document.getElementById('local-white-name');
+    if (whiteInput) whiteInput.focus();
+}
+
+function closeLocalPlayerModal(shouldKeepChanges) {
+    setLocalPlayerModalError('');
+    if (!shouldKeepChanges && localPlayerModalTimeBackup) {
+        setSelectedTimeSettings(localPlayerModalTimeBackup.minutes, localPlayerModalTimeBackup.increment);
+    }
+    localPlayerModalTimeBackup = null;
+    document.getElementById('local-player-modal').classList.remove('active');
+}
+
+function saveLocalPlayerConfig() {
+    var whiteInput = document.getElementById('local-white-name');
+    var blackInput = document.getElementById('local-black-name');
+    if (!whiteInput || !blackInput) return;
+
+    localPlayerConfig.whiteName = sanitizePlayerNameInput(whiteInput.value);
+    localPlayerConfig.blackName = sanitizePlayerNameInput(blackInput.value);
+    closeLocalPlayerModal(true);
+}
+
+function startLocalPvpGame() {
+    saveLocalPlayerConfig();
+    if (!isLocalPvpMode()) selectMode('pvp');
+    startGame();
+}
+
+function configureLocalPvpPlayers() {
+    selectMode('pvp');
+    openLocalPlayerModal();
+}
+
 function getSelectedTimeSettings() {
     return {
         minutes: gameSetting.minutes,
@@ -439,11 +522,7 @@ function updateOnlineUI() {
         randomBtn.classList.toggle('danger', !!onlineState.inQueue);
     }
 
-    var startBtn = document.getElementById('start-game-btn');
-    if (startBtn) startBtn.style.display = isOnlineMode() ? 'none' : 'block';
-
-    var localPlayerSection = document.getElementById('local-player-section');
-    if (localPlayerSection) localPlayerSection.style.display = isOnlineMode() ? 'none' : 'block';
+    updateLobbyStartButton();
 }
 
 function ensureFirebaseReady() {
@@ -895,7 +974,7 @@ function toggleCreateRoomAction() {
         deleteInviteRoom();
         return;
     }
-    createInviteRoom();
+    openOnlineTimeModal('create');
 }
 
 function deleteInviteRoom() {
@@ -939,7 +1018,47 @@ function toggleRandomMatch() {
         cancelOnlineWaiting();
         return;
     }
-    startRandomMatch();
+    openOnlineTimeModal('random');
+}
+
+function openOnlineTimeModal(action) {
+    onlineTimeAction = action === 'random' ? 'random' : (action === 'ai' ? 'ai' : 'create');
+    onlineTimeModalBackup = getSelectedTimeSettings();
+    var titleEl = document.getElementById('online-time-modal-title');
+    var messageEl = document.getElementById('online-time-modal-message');
+    var confirmBtn = document.getElementById('online-time-confirm-btn');
+    if (titleEl) {
+        titleEl.textContent = onlineTimeAction === 'create'
+            ? '방 만들기'
+            : (onlineTimeAction === 'random' ? '랜덤 매칭' : 'AI 대전 시간 설정');
+    }
+    if (messageEl) {
+        messageEl.textContent = onlineTimeAction === 'create'
+            ? '방에 적용할 시간 제한을 고른 뒤 다음을 누르세요.'
+            : (onlineTimeAction === 'random'
+                ? '매칭에 사용할 시간 제한을 고른 뒤 다음을 누르세요.'
+                : 'AI 대전에 사용할 시간 제한을 고른 뒤 게임을 시작하세요.');
+    }
+    if (confirmBtn) confirmBtn.textContent = onlineTimeAction === 'ai' ? '게임 시작' : '다음';
+    syncTimeSettingsUI();
+    document.getElementById('online-time-modal').classList.add('active');
+}
+
+function closeOnlineTimeModal(shouldKeepChanges) {
+    if (!shouldKeepChanges && onlineTimeModalBackup) {
+        setSelectedTimeSettings(onlineTimeModalBackup.minutes, onlineTimeModalBackup.increment);
+    }
+    onlineTimeModalBackup = null;
+    onlineTimeAction = null;
+    document.getElementById('online-time-modal').classList.remove('active');
+}
+
+function confirmOnlineTimeModal() {
+    var action = onlineTimeAction;
+    closeOnlineTimeModal(true);
+    if (action === 'random') startRandomMatch();
+    else if (action === 'ai') startGame();
+    else createInviteRoom();
 }
 
 function subscribeToRoom(roomId) {
@@ -1730,8 +1849,24 @@ function updateModeSelectionUI() {
     if (localPanel) localPanel.classList.toggle('active', isLocalMode);
     if (localSelectBtn) {
         localSelectBtn.classList.toggle('active', isLocalMode);
-        localSelectBtn.textContent = isLocalMode ? '현재 선택됨' : '로컬 PvP 선택';
+        localSelectBtn.textContent = isLocalMode ? '이름 설정' : '로컬 PvP 선택';
     }
+}
+
+function updateLobbyStartButton() {
+    var startBtn = document.getElementById('start-game-btn');
+    if (!startBtn) return;
+    startBtn.style.display = isLocalPvpMode() ? 'block' : 'none';
+}
+
+function showAISettingsStep(step) {
+    aiSettingsStep = step === 'time' ? 'time' : 'config';
+    var configEl = document.getElementById('ai-step-config');
+    var timeEl = document.getElementById('ai-step-time');
+    if (configEl) configEl.classList.toggle('active', aiSettingsStep === 'config');
+    if (timeEl) timeEl.classList.toggle('active', aiSettingsStep === 'time');
+    if (aiSettingsStep === 'time') syncTimeSettingsUI();
+    updateLobbyStartButton();
 }
 
 function selectMode(mode) {
@@ -1741,11 +1876,16 @@ function selectMode(mode) {
     // ★ AI 설정 패널 토글
     var aiSettings = document.getElementById('ai-settings');
     var onlineSettings = document.getElementById('online-settings');
-    if (mode === 'ai') aiSettings.classList.add('visible');
-    else aiSettings.classList.remove('visible');
+    if (mode === 'ai') {
+        aiSettings.classList.add('visible');
+        showAISettingsStep('config');
+    } else {
+        aiSettings.classList.remove('visible');
+    }
 
     if (mode === 'online') {
         onlineSettings.classList.add('visible');
+        syncTimeSettingsUI();
         ensureFirebaseReady().then(function() {
             setLobbyOnlineMessage('닉네임을 입력하면 방을 만들거나 참가할 수 있습니다.');
         }).catch(function() {});
@@ -1754,6 +1894,7 @@ function selectMode(mode) {
     }
     updateEndGameButton();
     updateGameOverModalButtons();
+    updateLobbyStartButton();
     updateOnlineUI();
 }
 
@@ -1805,61 +1946,69 @@ function updateAILevelUI() {
     if (wrapperEl) wrapperEl.classList.toggle('active', level >= 15);
 }
 
-function applyPreset(minutes, increment, el) {
-    document.querySelectorAll('.preset-btn').forEach(function(btn) { btn.classList.remove('active'); });
-    if (el) el.classList.add('active');
-    document.getElementById('custom-minutes').value = minutes;
-    document.getElementById('custom-increment').value = increment;
+function setSelectedTimeSettings(minutes, increment) {
+    minutes = Math.max(0, Math.min(180, parseInt(minutes, 10) || 0));
+    increment = Math.max(0, Math.min(60, parseInt(increment, 10) || 0));
     gameSetting.minutes = minutes;
     gameSetting.increment = increment;
     gameSetting.unlimited = (minutes === 0 && increment === 0);
-    updateTimeSummary();
+    syncTimeSettingsUI();
 }
 
-function adjustTime(type, delta) {
-    var input = document.getElementById(type === 'minutes' ? 'custom-minutes' : 'custom-increment');
-    var val = parseInt(input.value) || 0;
-    val += delta;
-    if (type === 'minutes') val = Math.max(0, Math.min(180, val));
-    else val = Math.max(0, Math.min(60, val));
-    input.value = val;
-    updateCustomPreset();
-}
-
-function updateCustomPreset() {
-    var minutes = parseInt(document.getElementById('custom-minutes').value) || 0;
-    var increment = parseInt(document.getElementById('custom-increment').value) || 0;
-    gameSetting.minutes = minutes;
-    gameSetting.increment = increment;
-    gameSetting.unlimited = (minutes === 0 && increment === 0);
-    document.querySelectorAll('.preset-btn').forEach(function(btn) { btn.classList.remove('active'); });
-    document.querySelectorAll('.preset-btn').forEach(function(btn) {
-        var m = btn.getAttribute('data-minutes');
-        var i = btn.getAttribute('data-increment');
-        if (m !== null && parseInt(m) === minutes && parseInt(i) === increment) btn.classList.add('active');
-    });
-    updateTimeSummary();
-}
-
-/* function updateTimeSummary() {
-    var el = document.getElementById('time-summary-text');
+function buildTimeSummaryText() {
     if (gameSetting.unlimited) {
-        el.textContent = '⏱️ 시간 제한 없음 (무제한)';
-    } else {
-        el.textContent = '⏱️ 각 플레이어: ' + (gameSetting.minutes > 0 ? gameSetting.minutes + '분' : '0분') + ' | 추가 시간(수 당): ' + (gameSetting.increment > 0 ? gameSetting.increment + '초' : '없음');
+        return '시간 제한 없음 (무제한)';
     }
+    return '각 플레이어: ' + (gameSetting.minutes > 0 ? gameSetting.minutes + '분' : '0분') + ' | 추가 시간(수 당): ' + (gameSetting.increment > 0 ? gameSetting.increment + '초' : '없음');
 }
 
-// ★ 게임 시작 (AI 모드 시 엔진 로딩 포함)
-*/
+function syncTimeSettingsUI() {
+    document.querySelectorAll('.time-settings-panel').forEach(function(panel) {
+        var minutesInput = panel.querySelector('.time-minutes-input');
+        var incrementInput = panel.querySelector('.time-increment-input');
+        if (minutesInput) minutesInput.value = gameSetting.minutes;
+        if (incrementInput) incrementInput.value = gameSetting.increment;
+        panel.querySelectorAll('.preset-btn').forEach(function(btn) {
+            var minutes = parseInt(btn.getAttribute('data-minutes'), 10);
+            var increment = parseInt(btn.getAttribute('data-increment'), 10);
+            btn.classList.toggle('active', minutes === gameSetting.minutes && increment === gameSetting.increment);
+        });
+        var summaryEl = panel.querySelector('.time-summary-text');
+        if (summaryEl) summaryEl.textContent = buildTimeSummaryText();
+    });
+}
+
+function applyPreset(minutes, increment) {
+    setSelectedTimeSettings(minutes, increment);
+}
+
+function adjustTime(type, delta, triggerEl) {
+    var panel = triggerEl ? triggerEl.closest('.time-settings-panel') : null;
+    if (!panel) return;
+    var minutesInput = panel.querySelector('.time-minutes-input');
+    var incrementInput = panel.querySelector('.time-increment-input');
+    var minutes = parseInt(minutesInput && minutesInput.value, 10) || 0;
+    var increment = parseInt(incrementInput && incrementInput.value, 10) || 0;
+
+    if (type === 'minutes') minutes += delta;
+    else increment += delta;
+
+    setSelectedTimeSettings(minutes, increment);
+}
+
+function updateCustomPreset(triggerEl) {
+    var panel = triggerEl ? triggerEl.closest('.time-settings-panel') : null;
+    if (!panel) return;
+    var minutesInput = panel.querySelector('.time-minutes-input');
+    var incrementInput = panel.querySelector('.time-increment-input');
+    setSelectedTimeSettings(
+        parseInt(minutesInput && minutesInput.value, 10) || 0,
+        parseInt(incrementInput && incrementInput.value, 10) || 0
+    );
+}
 
 function updateTimeSummary() {
-    var el = document.getElementById('time-summary-text');
-    if (gameSetting.unlimited) {
-        el.textContent = '시간 제한 없음 (무제한)';
-    } else {
-        el.textContent = '각 플레이어: ' + (gameSetting.minutes > 0 ? gameSetting.minutes + '분' : '0분') + ' | 추가 시간(수 당): ' + (gameSetting.increment > 0 ? gameSetting.increment + '초' : '없음');
-    }
+    syncTimeSettingsUI();
 }
 
 function startGame() {
@@ -1867,17 +2016,17 @@ function startGame() {
         setLobbyOnlineMessage('온라인 모드에서는 방 만들기, 방 참가, 랜덤 매칭 버튼을 사용해주세요.');
         return;
     }
-    gameSetting.whiteName = document.getElementById('white-name').value.trim() || '백 (White)';
-    gameSetting.blackName = document.getElementById('black-name').value.trim() || '흑 (Black)';
+    gameSetting.whiteName = getLocalPlayerName('white');
+    gameSetting.blackName = getLocalPlayerName('black');
     
     // ★ AI 모드일 때 이름 자동 설정
     if (gameSetting.mode === 'ai') {
         if (gameSetting.aiColor === 'white') {
             gameSetting.whiteName = '🤖 Stockfish (Lv.' + gameSetting.aiLevel + ')';
-            gameSetting.blackName = document.getElementById('black-name').value.trim() || '플레이어';
+            gameSetting.blackName = getLocalPlayerName('black', '플레이어');
         } else {
             gameSetting.blackName = '🤖 Stockfish (Lv.' + gameSetting.aiLevel + ')';
-            gameSetting.whiteName = document.getElementById('white-name').value.trim() || '플레이어';
+            gameSetting.whiteName = getLocalPlayerName('white', '플레이어');
         }
         
         // 엔진 로딩
@@ -2124,7 +2273,7 @@ function updateResignModalCopy() {
 
     if (isLocalPvpMode()) {
         titleEl.textContent = '게임 종료';
-        messageEl.textContent = '현재 로컬 PvP 게임을 종료하고 로비로 돌아갈까요?';
+        messageEl.textContent = '현재 로컬 PvP 게임을 종료하고 결과 화면으로 이동할까요?';
         if (!resignModalPending) confirmBtn.textContent = '종료하기';
         return;
     }
@@ -2145,6 +2294,21 @@ function applyResignationOutcome(loserColor) {
     stopTimer();
     gameOver = true;
     setGameConclusion(getResultByWinnerColor(winnerColor), '기권');
+    renderBoard();
+    updateUI();
+    showResolvedGameOver();
+}
+
+function finalizeLocalPvpExit() {
+    cleanupDragState();
+    clearPremoveQueue();
+    drawOfferBy = null;
+    turnStartedAt = null;
+    aiThinking = false;
+    showAIThinking(false);
+    stopTimer();
+    gameOver = true;
+    setGameConclusion('*', '게임 종료');
     renderBoard();
     updateUI();
     showResolvedGameOver();
@@ -2193,7 +2357,7 @@ function confirmResignGame() {
 
     if (isLocalPvpMode()) {
         closeResignModal(true);
-        backToLobby();
+        finalizeLocalPvpExit();
         return;
     }
 
@@ -2980,9 +3144,13 @@ function updatePGNActionButtons() {
     var openBtn = document.getElementById('open-pgn-btn');
     var copyBtn = document.getElementById('copy-pgn-btn');
     var downloadBtn = document.getElementById('download-pgn-btn');
+    var resultCopyBtn = document.getElementById('copy-pgn-result-btn');
+    var resultDownloadBtn = document.getElementById('download-pgn-result-btn');
     if (openBtn) openBtn.disabled = !canUsePGN;
     if (copyBtn) copyBtn.disabled = !canUsePGN;
     if (downloadBtn) downloadBtn.disabled = !canUsePGN;
+    if (resultCopyBtn) resultCopyBtn.disabled = !canUsePGN;
+    if (resultDownloadBtn) resultDownloadBtn.disabled = !canUsePGN;
 }
 
 function closePGNModal() {
@@ -3250,11 +3418,14 @@ function restartGame() {
 
 window.addEventListener('DOMContentLoaded', function() {
     updateTimeSummary();
+    syncLocalPlayerModalInputs();
     updateAILevelUI();
+    showAISettingsStep(aiSettingsStep);
     updatePGNActionButtons();
     updateEndGameButton();
     updateGameOverModalButtons();
     updateModeSelectionUI();
+    updateLobbyStartButton();
     document.addEventListener('mousemove', function(e) {
         handlePointerDragMove(e);
     });
@@ -3270,6 +3441,19 @@ window.addEventListener('DOMContentLoaded', function() {
             updateOnlineUI();
         });
     }
+    ['local-white-name', 'local-black-name'].forEach(function(id) {
+        var input = document.getElementById(id);
+        if (!input) return;
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                startLocalPvpGame();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeLocalPlayerModal();
+            }
+        });
+    });
     ensureFirebaseReady().then(function() {
         setLobbyOnlineMessage('온라인 PvP를 선택한 뒤 닉네임을 입력하면 바로 사용할 수 있습니다.');
     }).catch(function() {});

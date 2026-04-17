@@ -14,12 +14,6 @@
      ============================================ -->
 <div id="lobby-screen" class="screen active">
     <div class="lobby-container">
-        <div class="lobby-header">
-            <div class="logo">♟</div>
-            <h1>체스 게임</h1>
-            <p class="subtitle">CHESS GAME</p>
-        </div>
-
         <div class="lobby-section">
             <h2>게임 모드</h2>
             <div class="mode-grid">
@@ -36,30 +30,35 @@
             </div>
 
             <div class="ai-settings" id="ai-settings">
-                <h3>AI 설정</h3>
-                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">플레이 색상 선택</label>
-                <div class="ai-color-select">
-                    <div class="ai-color-btn active" data-color="white" onclick="selectAIColor('white')">백 (선공)</div>
-                    <div class="ai-color-btn" data-color="black" onclick="selectAIColor('black')">흑 (후공)</div>
-                    <div class="ai-color-btn" data-color="random" onclick="selectAIColor('random')">랜덤 선택</div>
-                </div>
-                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">AI 레벨 (Skill Level)</label>
-                <div class="ai-level-select">
-                    <div class="ai-level-header">
-                        <div>
-                            <div class="ai-level-value" id="ai-level-value">Lv. 10</div>
-                            <div class="ai-level-caption" id="ai-level-caption">중급</div>
+                <div class="ai-settings-step active" id="ai-step-config">
+                    <h3>AI 설정</h3>
+                    <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">플레이 색상 선택</label>
+                    <div class="ai-color-select">
+                        <div class="ai-color-btn active" data-color="white" onclick="selectAIColor('white')">백 (선공)</div>
+                        <div class="ai-color-btn" data-color="black" onclick="selectAIColor('black')">흑 (후공)</div>
+                        <div class="ai-color-btn" data-color="random" onclick="selectAIColor('random')">랜덤 선택</div>
+                    </div>
+                    <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">AI 레벨 (Skill Level)</label>
+                    <div class="ai-level-select">
+                        <div class="ai-level-header">
+                            <div>
+                                <div class="ai-level-value" id="ai-level-value">Lv. 10</div>
+                                <div class="ai-level-caption" id="ai-level-caption">중급</div>
+                            </div>
+                            <div class="ai-level-max">1 ~ 20</div>
                         </div>
-                        <div class="ai-level-max">1 ~ 20</div>
+                        <div class="ai-level-controls">
+                            <button type="button" class="ai-level-step" onclick="adjustAILevel(-1)" aria-label="AI 레벨 낮추기">-</button>
+                            <input id="ai-level-range" class="ai-level-range" type="range" min="1" max="20" step="1" value="10" oninput="selectAILevel(this.value)" />
+                            <button type="button" class="ai-level-step" onclick="adjustAILevel(1)" aria-label="AI 레벨 높이기">+</button>
+                        </div>
+                        <div class="ai-level-scale">
+                            <span>1</span>
+                            <span>20</span>
+                        </div>
                     </div>
-                    <div class="ai-level-controls">
-                        <button type="button" class="ai-level-step" onclick="adjustAILevel(-1)" aria-label="AI 레벨 낮추기">-</button>
-                        <input id="ai-level-range" class="ai-level-range" type="range" min="1" max="20" step="1" value="10" oninput="selectAILevel(this.value)" />
-                        <button type="button" class="ai-level-step" onclick="adjustAILevel(1)" aria-label="AI 레벨 높이기">+</button>
-                    </div>
-                    <div class="ai-level-scale">
-                        <span>1</span>
-                        <span>20</span>
+                    <div class="step-actions">
+                        <button type="button" class="modal-btn primary" onclick="openOnlineTimeModal('ai')">다음</button>
                     </div>
                 </div>
             </div>
@@ -101,94 +100,11 @@
             <div class="local-mode-panel active" id="local-mode-panel">
                 <div class="local-mode-copy">
                     <div class="local-mode-title">같은 화면에서 두 명이 번갈아 플레이</div>
-                    <p class="local-mode-desc">온라인 연결 없이 바로 대국할 수 있습니다. 아래 시간 설정과 플레이어 이름을 맞춘 뒤 시작하세요.</p>
+                    <p class="local-mode-desc">온라인 연결 없이 바로 대국할 수 있습니다. 버튼을 눌러 플레이어 이름과 시간을 정한 뒤 시작하세요.</p>
                 </div>
-                <button type="button" class="local-mode-btn active" id="local-mode-select-btn" onclick="selectMode('pvp')">현재 선택됨</button>
+                <button type="button" class="local-mode-btn active" id="local-mode-select-btn" onclick="configureLocalPvpPlayers()">이름 설정</button>
             </div>
         </div>
-
-        <div class="lobby-section">
-            <h2>대국 시간 설정</h2>
-            <div class="time-presets">
-                <div class="preset-btn" data-minutes="1" data-increment="0" onclick="applyPreset(1, 0, this)">
-                    <span class="time-value">1분</span><span class="time-label">BULLET</span>
-                </div>
-                <div class="preset-btn" data-minutes="1" data-increment="1" onclick="applyPreset(1, 1, this)">
-                    <span class="time-value">1+1</span><span class="time-label">BULLET</span>
-                </div>
-                <div class="preset-btn" data-minutes="2" data-increment="1" onclick="applyPreset(2, 1, this)">
-                    <span class="time-value">2+1</span><span class="time-label">BULLET</span>
-                </div>
-                <div class="preset-btn" data-minutes="3" data-increment="0" onclick="applyPreset(3, 0, this)">
-                    <span class="time-value">3분</span><span class="time-label">BLITZ</span>
-                </div>
-                <div class="preset-btn" data-minutes="3" data-increment="2" onclick="applyPreset(3, 2, this)">
-                    <span class="time-value">3+2</span><span class="time-label">BLITZ</span>
-                </div>
-                <div class="preset-btn active" data-minutes="5" data-increment="0" onclick="applyPreset(5, 0, this)">
-                    <span class="time-value">5분</span><span class="time-label">BLITZ</span>
-                </div>
-                <div class="preset-btn" data-minutes="5" data-increment="3" onclick="applyPreset(5, 3, this)">
-                    <span class="time-value">5+3</span><span class="time-label">BLITZ</span>
-                </div>
-                <div class="preset-btn" data-minutes="10" data-increment="0" onclick="applyPreset(10, 0, this)">
-                    <span class="time-value">10분</span><span class="time-label">RAPID</span>
-                </div>
-                <div class="preset-btn" data-minutes="10" data-increment="5" onclick="applyPreset(10, 5, this)">
-                    <span class="time-value">10+5</span><span class="time-label">RAPID</span>
-                </div>
-                <div class="preset-btn" data-minutes="15" data-increment="10" onclick="applyPreset(15, 10, this)">
-                    <span class="time-value">15+10</span><span class="time-label">RAPID</span>
-                </div>
-                <div class="preset-btn" data-minutes="30" data-increment="0" onclick="applyPreset(30, 0, this)">
-                    <span class="time-value">30분</span><span class="time-label">CLASSICAL</span>
-                </div>
-                <div class="preset-btn" data-minutes="0" data-increment="0" onclick="applyPreset(0, 0, this)">
-                    <span class="time-value">무제한</span><span class="time-label">NO LIMIT</span>
-                </div>
-            </div>
-
-            <h3 style="font-size:0.95em; color:var(--text-secondary); margin-bottom:12px;">직접 설정</h3>
-            <div class="custom-time">
-                <div class="time-input-group">
-                    <label>기본 시간</label>
-                    <div class="time-adjuster">
-                        <button onclick="adjustTime('minutes', -1)">-</button>
-                        <input type="number" id="custom-minutes" value="5" min="0" max="180" onchange="updateCustomPreset()">
-                        <button onclick="adjustTime('minutes', 1)">+</button>
-                        <span>분</span>
-                    </div>
-                </div>
-                <div class="time-input-group">
-                    <label>추가 시간</label>
-                    <div class="time-adjuster">
-                        <button onclick="adjustTime('increment', -1)">-</button>
-                        <input type="number" id="custom-increment" value="0" min="0" max="60" onchange="updateCustomPreset()">
-                        <button onclick="adjustTime('increment', 1)">+</button>
-                        <span>초</span>
-                    </div>
-                </div>
-            </div>
-            <div class="time-summary">
-                <span id="time-summary-text">각 플레이어: 5분 | 추가 시간(초): 없음</span>
-            </div>
-        </div>
-
-        <div class="lobby-section" id="local-player-section">
-            <h2>플레이어</h2>
-            <div class="player-inputs">
-                <div class="player-input-group">
-                    <label>백 플레이어</label>
-                    <input type="text" id="white-name" placeholder="Player 1" maxlength="20">
-                </div>
-                <div class="player-input-group">
-                    <label>흑 플레이어</label>
-                    <input type="text" id="black-name" placeholder="Player 2" maxlength="20">
-                </div>
-            </div>
-        </div>
-
-        <button class="start-btn" id="start-game-btn" onclick="startGame()">게임 시작</button>
     </div>
 </div>
 
@@ -275,9 +191,171 @@
         <h2 id="gameover-title">게임 종료</h2>
         <p id="gameover-message"></p>
         <div class="modal-buttons">
-            <button class="modal-btn secondary" id="open-pgn-btn" onclick="openPGNModal()">PGN 보기</button>
-            <button class="modal-btn primary" id="restart-game-btn" onclick="restartGame()">🔄 재대국</button>
-            <button class="modal-btn secondary" onclick="backToLobby()">🏠 로비로</button>
+            <button class="modal-btn secondary" id="copy-pgn-result-btn" onclick="copyPGN()">PGN 복사</button>
+            <button class="modal-btn secondary" id="download-pgn-result-btn" onclick="downloadPGN()">저장</button>
+            <button class="modal-btn primary" id="restart-game-btn" onclick="restartGame()">🔄 재시작</button>
+            <button class="modal-btn secondary" onclick="backToLobby()">🏠 로비로 돌아가기</button>
+        </div>
+    </div>
+</div>
+
+<div id="local-player-modal" class="modal-overlay" onclick="if (event.target === this) closeLocalPlayerModal()">
+    <div class="modal-content local-player-modal">
+        <h2>플레이어 이름 설정</h2>
+        <div id="local-player-modal-error" class="modal-inline-error" aria-live="polite"></div>
+        <div class="local-player-form">
+            <div class="local-player-input-group">
+                <label for="local-white-name">백 플레이어</label>
+                <input type="text" id="local-white-name" maxlength="20" autocomplete="off">
+            </div>
+            <div class="local-player-input-group">
+                <label for="local-black-name">흑 플레이어</label>
+                <input type="text" id="local-black-name" maxlength="20" autocomplete="off">
+            </div>
+        </div>
+        <div class="time-settings-panel" data-time-scope="local">
+            <h3 class="time-panel-heading">대국 시간 설정</h3>
+            <div class="time-presets">
+                <div class="preset-btn" data-minutes="1" data-increment="0" onclick="applyPreset(1, 0, this)">
+                    <span class="time-value">1분</span><span class="time-label">BULLET</span>
+                </div>
+                <div class="preset-btn" data-minutes="1" data-increment="1" onclick="applyPreset(1, 1, this)">
+                    <span class="time-value">1+1</span><span class="time-label">BULLET</span>
+                </div>
+                <div class="preset-btn" data-minutes="2" data-increment="1" onclick="applyPreset(2, 1, this)">
+                    <span class="time-value">2+1</span><span class="time-label">BULLET</span>
+                </div>
+                <div class="preset-btn" data-minutes="3" data-increment="0" onclick="applyPreset(3, 0, this)">
+                    <span class="time-value">3분</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn" data-minutes="3" data-increment="2" onclick="applyPreset(3, 2, this)">
+                    <span class="time-value">3+2</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn active" data-minutes="5" data-increment="0" onclick="applyPreset(5, 0, this)">
+                    <span class="time-value">5분</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn" data-minutes="5" data-increment="3" onclick="applyPreset(5, 3, this)">
+                    <span class="time-value">5+3</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn" data-minutes="10" data-increment="0" onclick="applyPreset(10, 0, this)">
+                    <span class="time-value">10분</span><span class="time-label">RAPID</span>
+                </div>
+                <div class="preset-btn" data-minutes="10" data-increment="5" onclick="applyPreset(10, 5, this)">
+                    <span class="time-value">10+5</span><span class="time-label">RAPID</span>
+                </div>
+                <div class="preset-btn" data-minutes="15" data-increment="10" onclick="applyPreset(15, 10, this)">
+                    <span class="time-value">15+10</span><span class="time-label">RAPID</span>
+                </div>
+                <div class="preset-btn" data-minutes="30" data-increment="0" onclick="applyPreset(30, 0, this)">
+                    <span class="time-value">30분</span><span class="time-label">CLASSICAL</span>
+                </div>
+                <div class="preset-btn" data-minutes="0" data-increment="0" onclick="applyPreset(0, 0, this)">
+                    <span class="time-value">무제한</span><span class="time-label">NO LIMIT</span>
+                </div>
+            </div>
+            <h4 class="time-panel-title">직접 설정</h4>
+            <div class="custom-time">
+                <div class="time-input-group">
+                    <label>기본 시간</label>
+                    <div class="time-adjuster">
+                        <button type="button" onclick="adjustTime('minutes', -1, this)">-</button>
+                        <input type="number" class="time-minutes-input" value="5" min="0" max="180" onchange="updateCustomPreset(this)">
+                        <button type="button" onclick="adjustTime('minutes', 1, this)">+</button>
+                        <span>분</span>
+                    </div>
+                </div>
+                <div class="time-input-group">
+                    <label>추가 시간</label>
+                    <div class="time-adjuster">
+                        <button type="button" onclick="adjustTime('increment', -1, this)">-</button>
+                        <input type="number" class="time-increment-input" value="0" min="0" max="60" onchange="updateCustomPreset(this)">
+                        <button type="button" onclick="adjustTime('increment', 1, this)">+</button>
+                        <span>초</span>
+                    </div>
+                </div>
+            </div>
+            <div class="time-summary">
+                <span class="time-summary-text">각 플레이어: 5분 | 추가 시간(수 당): 없음</span>
+            </div>
+        </div>
+        <div class="modal-buttons">
+            <button class="modal-btn secondary" onclick="closeLocalPlayerModal()">취소</button>
+            <button class="modal-btn primary" onclick="startLocalPvpGame()">게임 시작</button>
+        </div>
+    </div>
+</div>
+
+<div id="online-time-modal" class="modal-overlay" onclick="if (event.target === this) closeOnlineTimeModal()">
+    <div class="modal-content online-time-modal">
+        <h2 id="online-time-modal-title">대국 시간 설정</h2>
+        <p id="online-time-modal-message">원하는 시간 제한을 고른 뒤 다음을 눌러 진행하세요.</p>
+        <div class="time-settings-panel" data-time-scope="online">
+            <div class="time-presets">
+                <div class="preset-btn" data-minutes="1" data-increment="0" onclick="applyPreset(1, 0, this)">
+                    <span class="time-value">1분</span><span class="time-label">BULLET</span>
+                </div>
+                <div class="preset-btn" data-minutes="1" data-increment="1" onclick="applyPreset(1, 1, this)">
+                    <span class="time-value">1+1</span><span class="time-label">BULLET</span>
+                </div>
+                <div class="preset-btn" data-minutes="2" data-increment="1" onclick="applyPreset(2, 1, this)">
+                    <span class="time-value">2+1</span><span class="time-label">BULLET</span>
+                </div>
+                <div class="preset-btn" data-minutes="3" data-increment="0" onclick="applyPreset(3, 0, this)">
+                    <span class="time-value">3분</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn" data-minutes="3" data-increment="2" onclick="applyPreset(3, 2, this)">
+                    <span class="time-value">3+2</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn active" data-minutes="5" data-increment="0" onclick="applyPreset(5, 0, this)">
+                    <span class="time-value">5분</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn" data-minutes="5" data-increment="3" onclick="applyPreset(5, 3, this)">
+                    <span class="time-value">5+3</span><span class="time-label">BLITZ</span>
+                </div>
+                <div class="preset-btn" data-minutes="10" data-increment="0" onclick="applyPreset(10, 0, this)">
+                    <span class="time-value">10분</span><span class="time-label">RAPID</span>
+                </div>
+                <div class="preset-btn" data-minutes="10" data-increment="5" onclick="applyPreset(10, 5, this)">
+                    <span class="time-value">10+5</span><span class="time-label">RAPID</span>
+                </div>
+                <div class="preset-btn" data-minutes="15" data-increment="10" onclick="applyPreset(15, 10, this)">
+                    <span class="time-value">15+10</span><span class="time-label">RAPID</span>
+                </div>
+                <div class="preset-btn" data-minutes="30" data-increment="0" onclick="applyPreset(30, 0, this)">
+                    <span class="time-value">30분</span><span class="time-label">CLASSICAL</span>
+                </div>
+                <div class="preset-btn" data-minutes="0" data-increment="0" onclick="applyPreset(0, 0, this)">
+                    <span class="time-value">무제한</span><span class="time-label">NO LIMIT</span>
+                </div>
+            </div>
+            <h4 class="time-panel-title">직접 설정</h4>
+            <div class="custom-time">
+                <div class="time-input-group">
+                    <label>기본 시간</label>
+                    <div class="time-adjuster">
+                        <button type="button" onclick="adjustTime('minutes', -1, this)">-</button>
+                        <input type="number" class="time-minutes-input" value="5" min="0" max="180" onchange="updateCustomPreset(this)">
+                        <button type="button" onclick="adjustTime('minutes', 1, this)">+</button>
+                        <span>분</span>
+                    </div>
+                </div>
+                <div class="time-input-group">
+                    <label>추가 시간</label>
+                    <div class="time-adjuster">
+                        <button type="button" onclick="adjustTime('increment', -1, this)">-</button>
+                        <input type="number" class="time-increment-input" value="0" min="0" max="60" onchange="updateCustomPreset(this)">
+                        <button type="button" onclick="adjustTime('increment', 1, this)">+</button>
+                        <span>초</span>
+                    </div>
+                </div>
+            </div>
+            <div class="time-summary">
+                <span class="time-summary-text">각 플레이어: 5분 | 추가 시간(수 당): 없음</span>
+            </div>
+        </div>
+        <div class="modal-buttons">
+            <button class="modal-btn secondary" onclick="closeOnlineTimeModal()">취소</button>
+            <button class="modal-btn primary" id="online-time-confirm-btn" onclick="confirmOnlineTimeModal()">다음</button>
         </div>
     </div>
 </div>
