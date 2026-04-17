@@ -29,6 +29,28 @@ var INITIAL_BOARD = [
     ['R','N','B','Q','K','B','N','R']
 ];
 
+var INTRO_PRIMARY_PREVIEW_BOARD = [
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','','p','p','p','p'],
+    ['','','','','','','',''],
+    ['','','','p','','','',''],
+    ['','','','P','','B','',''],
+    ['','','','','','','',''],
+    ['P','P','P','','P','P','P','P'],
+    ['R','N','','Q','K','B','N','R']
+];
+
+var INTRO_SECONDARY_PREVIEW_BOARD = [
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','','','p','p','p'],
+    ['','','','','p','','',''],
+    ['','','','p','','','',''],
+    ['','','','P','P','','',''],
+    ['','','','','','','',''],
+    ['P','P','P','','','P','P','P'],
+    ['R','N','B','Q','K','B','N','R']
+];
+
 var gameSetting = {
     mode: 'pvp', minutes: 5, increment: 0,
     whiteName: '백 (White)', blackName: '흑 (Black)', unlimited: false,
@@ -3332,6 +3354,48 @@ function undoMove() {
 
 function flipBoard() { isFlipped = !isFlipped; renderBoard(); }
 
+function renderIntroBoardPreview(boardId, flipped, boardState) {
+    var preview = document.getElementById(boardId);
+    if (!preview) return;
+
+    var sourceBoard = boardState || INITIAL_BOARD;
+    preview.innerHTML = '';
+
+    for (var r = 0; r < 8; r++) {
+        for (var c = 0; c < 8; c++) {
+            var displayR = flipped ? 7 - r : r;
+            var displayC = flipped ? 7 - c : c;
+            var cell = document.createElement('div');
+            var piece = sourceBoard[displayR][displayC];
+
+            cell.className = 'intro-board-cell ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
+
+            if (piece && PIECE_SVG[piece]) {
+                var pieceEl = document.createElement('span');
+                pieceEl.className = 'intro-board-piece-svg';
+                pieceEl.innerHTML = PIECE_SVG[piece];
+                cell.appendChild(pieceEl);
+            }
+
+            preview.appendChild(cell);
+        }
+    }
+}
+
+function updateIntroFeatureTexts() {
+    var labels = ['로컬★2인★ 대전', '최고급$$AI$$무료증정', '온라인§§대전'];
+    var items = document.querySelectorAll('.intro-feature-list .intro-feature');
+    for (var i = 0; i < items.length && i < labels.length; i++) {
+        items[i].textContent = labels[i];
+    }
+}
+
+function updateIntroStartButtonText() {
+    var introStartBtn = document.getElementById('intro-start-btn');
+    if (!introStartBtn) return;
+    introStartBtn.textContent = '\u265A\u265A\uAC8C\uC784\u2605\uC2DC\uC791\u265A\u265A';
+}
+
 function initGame() {
     cleanupDragState();
     clearPremoveQueue();
@@ -3424,6 +3488,10 @@ function restartGame() {
 }
 
 window.addEventListener('DOMContentLoaded', function() {
+    renderIntroBoardPreview('intro-board-preview-primary', false, INTRO_PRIMARY_PREVIEW_BOARD);
+    renderIntroBoardPreview('intro-board-preview-secondary', true, INTRO_SECONDARY_PREVIEW_BOARD);
+    updateIntroFeatureTexts();
+    updateIntroStartButtonText();
     updateTimeSummary();
     syncLocalPlayerModalInputs();
     updateAILevelUI();

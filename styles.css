@@ -51,15 +51,12 @@ body {
 }
 
 .intro-shell {
-    width: min(980px, 100%);
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    width: min(1080px, 100%);
+    display: flex;
+    flex-direction: column;
     gap: 24px;
     align-items: stretch;
-}
-
-.intro-copy-panel,
-.intro-visual-panel {
+    padding: 32px;
     background: rgba(15, 24, 41, 0.72);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 24px;
@@ -67,39 +64,51 @@ body {
     backdrop-filter: blur(8px);
 }
 
+.intro-copy-panel,
+.intro-visual-panel {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
 .intro-copy-panel {
-    padding: 40px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .intro-badge {
-    display: inline-flex;
+    display: block;
     width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
     align-items: center;
-    padding: 8px 14px;
+    padding: 10px 12px;
     border-radius: 999px;
     background: rgba(240, 208, 96, 0.12);
     border: 1px solid rgba(240, 208, 96, 0.24);
     color: var(--gold);
-    font-size: 0.82em;
+    font-size: 0.9em;
     font-weight: 700;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-align: center;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-.intro-title {
-    margin-top: 18px;
-    font-size: clamp(2.2rem, 4vw, 3.7rem);
-    line-height: 1.05;
-    color: #fff4cf;
+.intro-badge::-webkit-scrollbar {
+    display: none;
 }
 
 .intro-copy {
-    margin-top: 18px;
-    max-width: 34rem;
+    max-width: none;
     color: #c0cadb;
-    font-size: 1.02em;
+    font-size: clamp(1.08rem, 0.95vw + 0.82rem, 1.2rem);
     line-height: 1.7;
 }
 
@@ -108,73 +117,111 @@ body {
 }
 
 .intro-start-btn {
-    min-width: 180px;
+    width: 100%;
+    height: 100%;
+    flex: 1;
+    min-height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    white-space: nowrap;
+    font-size: clamp(3.4rem, 3.2vw + 1.6rem, 4.4rem);
+    line-height: 1;
     box-shadow: 0 12px 24px rgba(240, 208, 96, 0.18);
 }
 
 .intro-visual-panel {
-    padding: 28px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 18px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(300px, 340px)) minmax(220px, 280px);
+    gap: 20px 24px;
+    align-items: start;
+    justify-content: start;
 }
 
 .intro-board-preview {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(8, 1fr);
     gap: 0;
+    width: 100%;
+    max-width: 340px;
+    aspect-ratio: 1;
+    justify-self: start;
     border-radius: 20px;
     overflow: hidden;
     border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 38px rgba(0,0,0,0.24);
 }
 
-.intro-board-preview span {
+.intro-board-cell {
     aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(1.6rem, 3vw, 2.8rem);
+    padding: 6px;
 }
 
-.intro-board-preview span:nth-child(8n + 1),
-.intro-board-preview span:nth-child(8n + 3),
-.intro-board-preview span:nth-child(8n + 6),
-.intro-board-preview span:nth-child(8n + 8) {
+.intro-board-cell.light {
     background: #f0d9b5;
 }
 
-.intro-board-preview span:nth-child(8n + 2),
-.intro-board-preview span:nth-child(8n + 4),
-.intro-board-preview span:nth-child(8n + 5),
-.intro-board-preview span:nth-child(8n + 7) {
+.intro-board-cell.dark {
     background: #b58863;
 }
 
-.intro-piece.light {
-    color: #fff;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+.intro-board-piece-svg {
+    width: 76%;
+    height: 76%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.24));
 }
 
-.intro-piece.dark {
-    color: #101010;
-    text-shadow: 0 1px 4px rgba(255,255,255,0.08);
+.intro-board-piece-svg svg {
+    width: 100%;
+    height: 100%;
+}
+
+.intro-side-stack {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    gap: 14px;
+    height: 100%;
 }
 
 .intro-feature-list {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+}
+
+.intro-visual-panel .intro-actions {
+    margin-top: 0;
+    width: 100%;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex: 1;
 }
 
 .intro-feature {
-    padding: 10px 14px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
+    min-height: 62px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
     color: var(--text-primary);
-    font-size: 0.88em;
-    font-weight: 600;
+    font-size: 0.96em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 14px 28px rgba(0,0,0,0.16);
 }
 
 /* ============================================
@@ -1463,12 +1510,23 @@ body {
 }
 
 @media (max-width: 1000px) {
-    .intro-shell {
-        grid-template-columns: 1fr;
+    .intro-shell { padding: 28px 24px; }
+
+    .intro-visual-panel {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
     }
 
-    .intro-copy-panel {
-        padding: 32px 24px;
+    .intro-side-stack {
+        grid-column: 1 / -1;
+    }
+
+    .intro-visual-panel .intro-actions {
+        justify-content: center;
+    }
+
+    .intro-board-preview,
+    .intro-visual-panel .intro-actions {
+        margin: 0 auto;
     }
 
     .game-container {
@@ -1514,17 +1572,17 @@ body {
         padding: 14px;
     }
 
-    .intro-copy-panel,
-    .intro-visual-panel {
+    .intro-shell {
         border-radius: 18px;
-    }
-
-    .intro-copy-panel {
-        padding: 26px 18px;
+        padding: 22px 16px;
     }
 
     .intro-visual-panel {
-        padding: 18px;
+        grid-template-columns: 1fr;
+    }
+
+    .intro-board-preview {
+        max-width: 100%;
     }
 
     :root {
