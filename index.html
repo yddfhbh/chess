@@ -9,10 +9,48 @@
 </head>
 <body>
 
+<div id="intro-screen" class="screen active">
+    <div class="intro-shell">
+        <div class="intro-copy-panel">
+            <span class="intro-badge">CHESS GAME</span>
+            <h1 class="intro-title">체스 게임에 오신 것을 환영합니다</h1>
+            <p class="intro-copy">로컬 PvP, Stockfish AI 대국, 온라인 매치를 한 곳에서 바로 시작할 수 있는 메인 로비로 들어가세요.</p>
+            <div class="intro-actions">
+                <button type="button" class="modal-btn primary intro-start-btn" id="intro-start-btn" onclick="enterLobby()">게임 시작</button>
+            </div>
+        </div>
+        <div class="intro-visual-panel" aria-hidden="true">
+            <div class="intro-board-preview">
+                <span class="intro-piece light">♔</span>
+                <span></span>
+                <span></span>
+                <span class="intro-piece dark">♞</span>
+                <span></span>
+                <span class="intro-piece dark">♛</span>
+                <span class="intro-piece light">♘</span>
+                <span></span>
+                <span></span>
+                <span class="intro-piece light">♙</span>
+                <span class="intro-piece dark">♟</span>
+                <span></span>
+                <span class="intro-piece dark">♚</span>
+                <span></span>
+                <span></span>
+                <span class="intro-piece light">♕</span>
+            </div>
+            <div class="intro-feature-list">
+                <div class="intro-feature">로컬 2인 대전</div>
+                <div class="intro-feature">Stockfish AI</div>
+                <div class="intro-feature">온라인 매치</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ============================================
      로비 화면
      ============================================ -->
-<div id="lobby-screen" class="screen active">
+<div id="lobby-screen" class="screen">
     <div class="lobby-container">
         <div class="lobby-section">
             <h2>게임 모드</h2>

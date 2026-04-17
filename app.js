@@ -1869,6 +1869,13 @@ function showAISettingsStep(step) {
     updateLobbyStartButton();
 }
 
+function enterLobby() {
+    var introScreen = document.getElementById('intro-screen');
+    var lobbyScreen = document.getElementById('lobby-screen');
+    if (introScreen) introScreen.classList.remove('active');
+    if (lobbyScreen) lobbyScreen.classList.add('active');
+}
+
 function selectMode(mode) {
     gameSetting.mode = mode;
     updateModeSelectionUI();
@@ -3436,6 +3443,8 @@ window.addEventListener('DOMContentLoaded', function() {
         endPointerDragFromPoint(-1, -1, false);
     });
     var onlineNameInput = document.getElementById('online-name');
+    var introStartBtn = document.getElementById('intro-start-btn');
+    if (introStartBtn) introStartBtn.focus();
     if (onlineNameInput) {
         onlineNameInput.addEventListener('input', function() {
             updateOnlineUI();

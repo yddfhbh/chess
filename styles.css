@@ -38,6 +38,145 @@ body {
 .screen { display: none; }
 .screen.active { display: block; }
 
+#intro-screen.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+    background:
+        radial-gradient(circle at top, rgba(240, 208, 96, 0.12), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(79, 195, 247, 0.12), transparent 28%),
+        linear-gradient(160deg, #101827 0%, #15213a 45%, #1a1a2e 100%);
+}
+
+.intro-shell {
+    width: min(980px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: 24px;
+    align-items: stretch;
+}
+
+.intro-copy-panel,
+.intro-visual-panel {
+    background: rgba(15, 24, 41, 0.72);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    box-shadow: 0 28px 60px rgba(0,0,0,0.28);
+    backdrop-filter: blur(8px);
+}
+
+.intro-copy-panel {
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.intro-badge {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(240, 208, 96, 0.12);
+    border: 1px solid rgba(240, 208, 96, 0.24);
+    color: var(--gold);
+    font-size: 0.82em;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+}
+
+.intro-title {
+    margin-top: 18px;
+    font-size: clamp(2.2rem, 4vw, 3.7rem);
+    line-height: 1.05;
+    color: #fff4cf;
+}
+
+.intro-copy {
+    margin-top: 18px;
+    max-width: 34rem;
+    color: #c0cadb;
+    font-size: 1.02em;
+    line-height: 1.7;
+}
+
+.intro-actions {
+    margin-top: 28px;
+}
+
+.intro-start-btn {
+    min-width: 180px;
+    box-shadow: 0 12px 24px rgba(240, 208, 96, 0.18);
+}
+
+.intro-visual-panel {
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+}
+
+.intro-board-preview {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.intro-board-preview span {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(1.6rem, 3vw, 2.8rem);
+}
+
+.intro-board-preview span:nth-child(8n + 1),
+.intro-board-preview span:nth-child(8n + 3),
+.intro-board-preview span:nth-child(8n + 6),
+.intro-board-preview span:nth-child(8n + 8) {
+    background: #f0d9b5;
+}
+
+.intro-board-preview span:nth-child(8n + 2),
+.intro-board-preview span:nth-child(8n + 4),
+.intro-board-preview span:nth-child(8n + 5),
+.intro-board-preview span:nth-child(8n + 7) {
+    background: #b58863;
+}
+
+.intro-piece.light {
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+}
+
+.intro-piece.dark {
+    color: #101010;
+    text-shadow: 0 1px 4px rgba(255,255,255,0.08);
+}
+
+.intro-feature-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.intro-feature {
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-primary);
+    font-size: 0.88em;
+    font-weight: 600;
+}
+
 /* ============================================
    로비 화면
    ============================================ */
@@ -1324,6 +1463,14 @@ body {
 }
 
 @media (max-width: 1000px) {
+    .intro-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .intro-copy-panel {
+        padding: 32px 24px;
+    }
+
     .game-container {
         flex-direction: column;
         align-items: center;
@@ -1363,6 +1510,23 @@ body {
 }
 
 @media (max-width: 500px) {
+    #intro-screen.active {
+        padding: 14px;
+    }
+
+    .intro-copy-panel,
+    .intro-visual-panel {
+        border-radius: 18px;
+    }
+
+    .intro-copy-panel {
+        padding: 26px 18px;
+    }
+
+    .intro-visual-panel {
+        padding: 18px;
+    }
+
     :root {
         --sq-size: calc((100vw - 50px) / 8);
     }
