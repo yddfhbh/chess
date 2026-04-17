@@ -2964,7 +2964,7 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol, mode, movingPiece) {
 
 function updateUI() {
     var statusEl = document.getElementById('status');
-    if (!gameOver) {
+    if (statusEl && !gameOver) {
         var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
         var icon = currentTurn === 'white' ? '⚪' : '⚫';
         var checkText = isInCheck(board, currentTurn) ? ' 체크!' : '';

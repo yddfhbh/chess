@@ -715,7 +715,7 @@ body {
    ============================================ */
 #game-screen.active {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     height: 100vh;
     overflow: hidden;
@@ -724,9 +724,9 @@ body {
 .game-container {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     gap: 25px;
-    padding: 28px 20px 18px;
+    padding: 16px 20px 18px;
     max-width: 100%;
     width: 100%;
     height: 100%;
@@ -736,7 +736,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-shrink: 0;
     width: calc(var(--board-size) + 36px);
 }
@@ -878,7 +878,7 @@ body {
 }
 
 .status-bar {
-    display: none;
+    display: none !important;
     margin-top: 8px;
     padding: 6px 20px;
     background: var(--bg-card);
@@ -887,7 +887,6 @@ body {
     text-align: center;
     width: 100%;
     min-height: 38px;
-    display: flex;
     align-items: center;
     justify-content: center;
 }
@@ -1328,8 +1327,9 @@ body {
     .game-container {
         flex-direction: column;
         align-items: center;
+        justify-content: flex-start;
         gap: 10px;
-        padding: 18px 10px 10px;
+        padding: 1px 10px 10px;
     }
     
     :root {
