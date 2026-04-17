@@ -70,6 +70,9 @@ var selectedInteractionMode = null;
 var selectedPiece = null;
 var premoveQueue = [];
 var resignModalPending = false;
+var drawOfferBy = null;
+var suppressBoardClickUntil = 0;
+var dragGhostEl = null;
 
 // ★ ============================================================
 //  Stockfish WASM 엔진 관련 변수
@@ -477,6 +480,7 @@ function buildInitialOnlineGameState() {
         state: {
             board: cloneBoard(INITIAL_BOARD),
             currentTurn: 'white',
+            drawOfferBy: null,
             castlingRights: { K: true, Q: true, k: true, q: true },
             enPassantTarget: null,
             halfMoveClock: 0,
@@ -548,6 +552,7 @@ function normalizeSerializedOnlineGameState(serializedState) {
         state: {
             board: normalizeBoard(boardSource),
             currentTurn: rawState.currentTurn === 'black' ? 'black' : 'white',
+            drawOfferBy: rawState.drawOfferBy === 'black' ? 'black' : (rawState.drawOfferBy === 'white' ? 'white' : null),
             castlingRights: {
                 K: rawState.castlingRights ? rawState.castlingRights.K !== false : true,
                 Q: rawState.castlingRights ? rawState.castlingRights.Q !== false : true,
@@ -819,6 +824,7 @@ function enterOnlineGameFromRoom(room) {
     gameSetting.blackName = room.blackName || '흑';
     syncDisplayedPlayerNames();
     updateEndGameButton();
+    updateGameOverModalButtons();
     document.getElementById('lobby-screen').classList.remove('active');
     document.getElementById('game-screen').classList.add('active');
     isFlipped = onlineState.playerColor === 'black';
@@ -868,6 +874,7 @@ function resetOnlineSessionState() {
     onlineState.gameRevision = -1;
     onlineState.lastSyncedStateHash = null;
     onlineState.showJoinRoomInput = false;
+    drawOfferBy = null;
     updateOnlineUI();
 }
 
@@ -922,6 +929,7 @@ function clearOnlineTransientState() {
     onlineState.gameRevision = -1;
     onlineState.lastSyncedStateHash = null;
     onlineState.enabled = false;
+    drawOfferBy = null;
     updateOnlineUI();
     return Promise.all(tasks);
 }
@@ -1491,6 +1499,49 @@ function clearDragHighlights() {
     });
 }
 
+function destroyDragGhost() {
+    if (!dragGhostEl) return;
+    if (dragGhostEl.parentNode) dragGhostEl.parentNode.removeChild(dragGhostEl);
+    dragGhostEl = null;
+}
+
+function ensureDragGhost(pieceMarkup) {
+    if (dragGhostEl) return dragGhostEl;
+    dragGhostEl = document.createElement('div');
+    dragGhostEl.className = 'drag-ghost';
+    dragGhostEl.innerHTML = pieceMarkup || '';
+    document.body.appendChild(dragGhostEl);
+    return dragGhostEl;
+}
+
+function updateDragGhostPosition(clientX, clientY) {
+    if (!dragState || !dragState.hasMoved) return;
+    var ghost = ensureDragGhost(dragState.pieceMarkup);
+    ghost.style.left = Math.round(clientX - dragState.dragOffsetX) + 'px';
+    ghost.style.top = Math.round(clientY - dragState.dragOffsetY) + 'px';
+}
+
+function getSquareFromPoint(clientX, clientY) {
+    var el = document.elementFromPoint(clientX, clientY);
+    if (!el) return null;
+    var square = el.closest ? el.closest('.square') : null;
+    if (!square) return null;
+    var row = Number(square.dataset.row);
+    var col = Number(square.dataset.col);
+    if (!Number.isInteger(row) || !Number.isInteger(col)) return null;
+    return { row: row, col: col, element: square };
+}
+
+function refreshPointerDragTarget(clientX, clientY) {
+    if (!dragState) return;
+    clearDragHighlights();
+    applyDragHighlights();
+    var target = getSquareFromPoint(clientX, clientY);
+    if (target && isLegalDestination(target.row, target.col, dragState.moves)) {
+        target.element.classList.add('drag-over');
+    }
+}
+
 function applyDragHighlights() {
     if (!dragState) return;
 
@@ -1506,12 +1557,94 @@ function applyDragHighlights() {
 }
 
 function cleanupDragState() {
+    destroyDragGhost();
     clearDragHighlights();
     dragState = null;
     selectedSquare = null;
     possibleMoves = [];
     selectedInteractionMode = null;
     selectedPiece = null;
+}
+
+function releaseDragState(preserveSelection) {
+    if (!dragState) {
+        if (!preserveSelection) cleanupDragState();
+        return;
+    }
+
+    var snapshot = preserveSelection ? {
+        fromRow: dragState.fromRow,
+        fromCol: dragState.fromCol,
+        moves: dragState.moves.slice(),
+        mode: dragState.mode,
+        piece: dragState.piece
+    } : null;
+
+    destroyDragGhost();
+    clearDragHighlights();
+    dragState = null;
+
+    if (snapshot) {
+        setSelection(snapshot.fromRow, snapshot.fromCol, snapshot.moves, snapshot.mode, snapshot.piece);
+        return;
+    }
+
+    selectedSquare = null;
+    possibleMoves = [];
+    selectedInteractionMode = null;
+    selectedPiece = null;
+}
+
+function startPointerDrag(row, col, pieceEl, event) {
+    if (event && typeof event.button === 'number' && event.button !== 0) return;
+    if (event && event.preventDefault) event.preventDefault();
+    suppressBoardClickUntil = Date.now() + 250;
+    startPieceDrag(row, col, pieceEl, event);
+}
+
+function hoverPointerDragTarget(row, col, squareEl) {
+    if (!dragState) return;
+    refreshPointerDragTarget(
+        dragState.lastClientX != null ? dragState.lastClientX : 0,
+        dragState.lastClientY != null ? dragState.lastClientY : 0
+    );
+}
+
+function handlePointerDragMove(event) {
+    if (!dragState) return;
+    dragState.lastClientX = event.clientX;
+    dragState.lastClientY = event.clientY;
+
+    var deltaX = event.clientX - dragState.startClientX;
+    var deltaY = event.clientY - dragState.startClientY;
+    if (!dragState.hasMoved) {
+        if ((deltaX * deltaX) + (deltaY * deltaY) < 16) return;
+        dragState.hasMoved = true;
+        if (dragState.sourceEl) dragState.sourceEl.classList.add('dragging');
+    }
+
+    updateDragGhostPosition(event.clientX, event.clientY);
+    refreshPointerDragTarget(event.clientX, event.clientY);
+}
+
+function endPointerDragFromPoint(clientX, clientY, shouldCommit) {
+    if (!dragState) return;
+
+    if (!dragState.hasMoved) {
+        releaseDragState(true);
+        renderBoard();
+        return;
+    }
+
+    var target = shouldCommit ? getSquareFromPoint(clientX, clientY) : null;
+    if (target && isLegalDestination(target.row, target.col, dragState.moves)) {
+        finishDragMove(target.row, target.col);
+        return;
+    }
+
+    var preserveSelection = dragState.mode === 'premove' && premoveQueue.length === 0;
+    releaseDragState(preserveSelection);
+    renderBoard();
 }
 
 function startPieceDrag(row, col, pieceEl, event) {
@@ -1531,12 +1664,22 @@ function startPieceDrag(row, col, pieceEl, event) {
     var piece = mode === 'live' ? board[row][col] : previewState.board[row][col];
 
     cleanupDragState();
+    var pieceRect = pieceEl && pieceEl.getBoundingClientRect ? pieceEl.getBoundingClientRect() : null;
     dragState = {
         fromRow: row,
         fromCol: col,
         moves: moves,
         mode: mode,
-        piece: piece
+        piece: piece,
+        pieceMarkup: pieceEl ? pieceEl.innerHTML : '',
+        sourceEl: pieceEl || null,
+        startClientX: event && typeof event.clientX === 'number' ? event.clientX : 0,
+        startClientY: event && typeof event.clientY === 'number' ? event.clientY : 0,
+        lastClientX: event && typeof event.clientX === 'number' ? event.clientX : 0,
+        lastClientY: event && typeof event.clientY === 'number' ? event.clientY : 0,
+        dragOffsetX: pieceRect && event && typeof event.clientX === 'number' ? (event.clientX - pieceRect.left) : 0,
+        dragOffsetY: pieceRect && event && typeof event.clientY === 'number' ? (event.clientY - pieceRect.top) : 0,
+        hasMoved: false
     };
     setSelection(row, col, moves, mode, piece);
     applyDragHighlights();
@@ -1595,6 +1738,7 @@ function selectMode(mode) {
         onlineSettings.classList.remove('visible');
     }
     updateEndGameButton();
+    updateGameOverModalButtons();
     updateOnlineUI();
 }
 
@@ -1758,6 +1902,7 @@ function backToLobby() {
     stopTimer(); gameOver = true;
     cleanupDragState();
     clearPremoveQueue();
+    drawOfferBy = null;
     turnStartedAt = null;
     finalGameResult = '*';
     finalGameTermination = '';
@@ -1797,6 +1942,113 @@ function getResultByWinnerColor(color) {
     return color === 'white' ? '1-0' : '0-1';
 }
 
+function isDrawOfferAvailableMode() {
+    return gameSetting.mode !== 'ai';
+}
+
+function getLastMoverColor() {
+    return moveHistory.length > 0 ? moveHistory[moveHistory.length - 1].color : null;
+}
+
+function getControlledPlayerColor() {
+    if (isOnlineMode()) return onlineState.playerColor;
+    if (gameSetting.mode === 'ai') return gameSetting.playerColor;
+    return null;
+}
+
+function getDrawOfferActorColor() {
+    return getControlledPlayerColor() || getLastMoverColor();
+}
+
+function getDrawAcceptActorColor() {
+    return getControlledPlayerColor() || currentTurn;
+}
+
+function canColorOfferDraw(color) {
+    if (!isDrawOfferAvailableMode() || gameOver || !color || drawOfferBy) return false;
+    if (moveHistory.length === 0) return false;
+    if (getLastMoverColor() !== color) return false;
+    return currentTurn === opponentColor(color);
+}
+
+function canColorAcceptDraw(color) {
+    if (!isDrawOfferAvailableMode() || gameOver || !color || !drawOfferBy) return false;
+    return drawOfferBy !== color && currentTurn === color;
+}
+
+function updateDrawControls() {
+    var offerBtn = document.getElementById('offer-draw-btn');
+    var acceptBtn = document.getElementById('accept-draw-btn');
+    var statusEl = document.getElementById('draw-status-text');
+    if (!offerBtn || !acceptBtn) return;
+
+    var offerColor = getDrawOfferActorColor();
+    var acceptColor = getDrawAcceptActorColor();
+    var canOffer = canColorOfferDraw(offerColor);
+    var canAccept = canColorAcceptDraw(acceptColor);
+
+    offerBtn.disabled = !canOffer;
+    acceptBtn.disabled = !canAccept;
+    offerBtn.textContent = drawOfferBy ? '🤝 무승부 제안 중' : '🤝 무승부 제안';
+    acceptBtn.textContent = '✅ 무승부 수락';
+
+    if (!statusEl) return;
+
+    if (gameOver) {
+        statusEl.textContent = '';
+        return;
+    }
+    if (!isDrawOfferAvailableMode()) {
+        statusEl.textContent = 'AI 대국에서는 무승부 제안을 사용할 수 없습니다.';
+        return;
+    }
+    if (drawOfferBy) {
+        statusEl.textContent = getWinnerNameByColor(drawOfferBy) + '이 무승부를 제안했습니다. 수를 두면 자동으로 거절됩니다.';
+        return;
+    }
+    if (moveHistory.length === 0) {
+        statusEl.textContent = '한 수 이상 둔 뒤에 무승부를 제안할 수 있습니다.';
+        return;
+    }
+    if (canOffer && offerColor) {
+        statusEl.textContent = getWinnerNameByColor(offerColor) + '이 지금 무승부를 제안할 수 있습니다.';
+        return;
+    }
+    statusEl.textContent = '';
+}
+
+function offerDraw() {
+    if (gameOver) return;
+    var offerColor = getDrawOfferActorColor();
+    if (!canColorOfferDraw(offerColor)) return;
+    drawOfferBy = offerColor;
+    updateUI();
+    if (isOnlineMode() && !onlineState.applyingRemoteState) syncOnlineGameState('draw-offer');
+}
+
+function finalizeAcceptedDraw() {
+    cleanupDragState();
+    clearPremoveQueue();
+    drawOfferBy = null;
+    turnStartedAt = null;
+    aiThinking = false;
+    showAIThinking(false);
+    stopTimer();
+    gameOver = true;
+    setGameConclusion('1/2-1/2', '합의 무승부');
+    renderBoard();
+    updateUI();
+    showResolvedGameOver();
+}
+
+function acceptDraw() {
+    if (gameOver) return;
+    var acceptColor = getDrawAcceptActorColor();
+    if (!canColorAcceptDraw(acceptColor)) return;
+    finalizeAcceptedDraw();
+    if (isOnlineMode() && !onlineState.applyingRemoteState) syncOnlineGameState('finish');
+}
+
 function isLocalPvpMode() {
     return gameSetting.mode === 'pvp';
 }
@@ -1805,6 +2057,12 @@ function updateEndGameButton() {
     var btn = document.getElementById('end-game-btn');
     if (!btn) return;
     btn.textContent = isLocalPvpMode() ? '🚪 종료' : '🏳️ 기권';
+}
+
+function updateGameOverModalButtons() {
+    var restartBtn = document.getElementById('restart-game-btn');
+    if (!restartBtn) return;
+    restartBtn.style.display = isOnlineMode() ? 'none' : '';
 }
 
 function updateResignModalCopy() {
@@ -1829,6 +2087,7 @@ function applyResignationOutcome(loserColor) {
     var winnerColor = opponentColor(loserColor);
     cleanupDragState();
     clearPremoveQueue();
+    drawOfferBy = null;
     turnStartedAt = null;
     aiThinking = false;
     showAIThinking(false);
@@ -1936,6 +2195,7 @@ function setGameConclusion(result, termination) {
 function cloneState() {
     return {
         board: cloneBoard(board), currentTurn: currentTurn,
+        drawOfferBy: drawOfferBy,
         castlingRights: { K: castlingRights.K, Q: castlingRights.Q, k: castlingRights.k, q: castlingRights.q },
         enPassantTarget: enPassantTarget ? enPassantTarget.slice() : null,
         halfMoveClock: halfMoveClock, fullMoveNumber: fullMoveNumber,
@@ -1948,6 +2208,7 @@ function cloneState() {
 
 function restoreState(state) {
     board = cloneBoard(state.board); currentTurn = state.currentTurn;
+    drawOfferBy = state.drawOfferBy === 'black' ? 'black' : (state.drawOfferBy === 'white' ? 'white' : null);
     castlingRights = { K: state.castlingRights.K, Q: state.castlingRights.Q, k: state.castlingRights.k, q: state.castlingRights.q };
     enPassantTarget = state.enPassantTarget ? state.enPassantTarget.slice() : null;
     halfMoveClock = state.halfMoveClock; fullMoveNumber = state.fullMoveNumber;
@@ -2106,6 +2367,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     boardHistory.push(cloneState());
     var piece = board[fromRow][fromCol];
     var color = pieceColor(piece);
+    if (drawOfferBy && drawOfferBy !== color) drawOfferBy = null;
     var isWhiteFirstMove = !firstMoveMade && color === 'white';
     var moveOptions = options || {};
     var moveDurationMs = typeof moveOptions.forceDurationMs === 'number' ? moveOptions.forceDurationMs : (isWhiteFirstMove ? 0 : (turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0));
@@ -2175,13 +2437,16 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     addMoveToHistory(moveNotation, color, moveDurationMs, clockAfterMove);
 
     if (!hasLegal) {
+        drawOfferBy = null;
         gameOver = true; stopTimer();
         setGameConclusion(inCheck ? (color === 'white' ? '1-0' : '0-1') : '1/2-1/2', inCheck ? '체크메이트' : '스테일메이트');
         showResolvedGameOver();
     } else if (isInsufficientMaterial()) {
+        drawOfferBy = null;
         setGameConclusion('1/2-1/2', '기물 부족');
         gameOver = true; stopTimer(); showResolvedGameOver();
     } else if (halfMoveClock >= 100) {
+        drawOfferBy = null;
         setGameConclusion('1/2-1/2', '50수 규칙');
         gameOver = true; stopTimer(); showResolvedGameOver();
     }
@@ -2283,36 +2548,15 @@ function renderBoard() {
                 pieceDiv.innerHTML = PIECE_SVG[piece];
                 if (canDragPiece(displayR, displayC)) {
                     pieceDiv.classList.add('draggable-piece');
-                    pieceDiv.draggable = true;
+                    pieceDiv.draggable = false;
                     (function(dr, dc, draggablePiece) {
-                        draggablePiece.addEventListener('dragstart', function(e) {
-                            startPieceDrag(dr, dc, draggablePiece, e);
-                        });
-                        draggablePiece.addEventListener('dragend', function() {
-                            cleanupDragState();
-                            renderBoard();
+                        draggablePiece.addEventListener('mousedown', function(e) {
+                            startPointerDrag(dr, dc, draggablePiece, e);
                         });
                     })(displayR, displayC, pieceDiv);
                 }
                 square.appendChild(pieceDiv);
             }
-
-            (function(dr, dc, squareEl) {
-                squareEl.addEventListener('dragover', function(e) {
-                    if (!dragState || !isLegalDestination(dr, dc, dragState.moves)) return;
-                    e.preventDefault();
-                    squareEl.classList.add('drag-over');
-                });
-                squareEl.addEventListener('dragleave', function() {
-                    squareEl.classList.remove('drag-over');
-                });
-                squareEl.addEventListener('drop', function(e) {
-                    if (!dragState) return;
-                    e.preventDefault();
-                    squareEl.classList.remove('drag-over');
-                    finishDragMove(dr, dc);
-                });
-            })(displayR, displayC, square);
 
             (function(dr, dc) { square.addEventListener('click', function() { onSquareClick(dr, dc); }); })(displayR, displayC);
             chessboard.appendChild(square);
@@ -2385,6 +2629,7 @@ function showGameOver(title, message) {
     closeResignModal(true);
     document.getElementById('gameover-title').textContent = title;
     document.getElementById('gameover-message').textContent = message;
+    updateGameOverModalButtons();
     updatePGNActionButtons();
     document.getElementById('gameover-modal').classList.add('active');
 }
@@ -2417,9 +2662,11 @@ function updateUI() {
         var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; blackCapturedEl.appendChild(mini);
     });
     updateTimerDisplay();
+    updateDrawControls();
 }
 
 function onSquareClick(row, col) {
+    if (Date.now() < suppressBoardClickUntil) return;
     if (gameOver) return;
     var premoveState = buildPremovePreviewState();
 
@@ -2496,6 +2743,7 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol, mode, movingPiece) {
         var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; blackCapturedEl.appendChild(mini);
     });
     updateTimerDisplay();
+    updateDrawControls();
 }
 */
 
@@ -2527,6 +2775,7 @@ function updateUI() {
         var mini = document.createElement('span'); mini.className = 'captured-piece-svg'; mini.innerHTML = PIECE_SVG[p]; blackCapturedEl.appendChild(mini);
     });
     updateTimerDisplay();
+    updateDrawControls();
 }
 
 function formatTime(totalSeconds) {
@@ -2761,9 +3010,12 @@ function startTimer() {
         if (gameOver) { stopTimer(); return; }
         if (currentTurn === 'white') {
             whiteTime--;
+            if (whiteTime <= 0) drawOfferBy = null;
             if (whiteTime <= 0) { whiteTime = 0; gameOver = true; finalGameResult = '0-1'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
         } else {
             blackTime--;
+            if (blackTime <= 0) drawOfferBy = null;
+            if (blackTime <= 0) drawOfferBy = null;
             if (blackTime <= 0) { blackTime = 0; gameOver = true; finalGameResult = '1-0'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
         }
         updateTimerDisplay();
@@ -2795,6 +3047,7 @@ function startTimer() {
         if (isOnlineMode() && !isLocalOnlineTurn()) return;
         if (currentTurn === 'white') {
             whiteTime--;
+            if (whiteTime <= 0) drawOfferBy = null;
             if (whiteTime <= 0) { whiteTime = 0; gameOver = true; setGameConclusion('0-1', '시간 초과'); turnStartedAt = null; stopTimer(); showResolvedGameOver(); renderBoard(); }
         } else {
             blackTime--;
@@ -2856,6 +3109,7 @@ function flipBoard() { isFlipped = !isFlipped; renderBoard(); }
 function initGame() {
     cleanupDragState();
     clearPremoveQueue();
+    drawOfferBy = null;
     gameStartedAt = new Date();
     turnStartedAt = Date.now();
     finalGameResult = '*';
@@ -2876,6 +3130,7 @@ function initGame() {
 
     syncDisplayedPlayerNames();
     updateEndGameButton();
+    updateGameOverModalButtons();
 
     var wInc = document.getElementById('white-increment-badge'), bInc = document.getElementById('black-increment-badge');
     if (gameSetting.increment > 0) {
@@ -2927,6 +3182,7 @@ function restartGame() {
     updatePGNActionButtons();
     cleanupDragState();
     clearPremoveQueue();
+    drawOfferBy = null;
     finalGameResult = '*';
     finalGameTermination = '';
     gameEndedAt = null;
@@ -2942,6 +3198,16 @@ window.addEventListener('DOMContentLoaded', function() {
     updateAILevelUI();
     updatePGNActionButtons();
     updateEndGameButton();
+    updateGameOverModalButtons();
+    document.addEventListener('mousemove', function(e) {
+        handlePointerDragMove(e);
+    });
+    document.addEventListener('mouseup', function(e) {
+        endPointerDragFromPoint(e.clientX, e.clientY, true);
+    });
+    window.addEventListener('blur', function() {
+        endPointerDragFromPoint(-1, -1, false);
+    });
     var onlineNameInput = document.getElementById('online-name');
     if (onlineNameInput) {
         onlineNameInput.addEventListener('input', function() {

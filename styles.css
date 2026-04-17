@@ -755,6 +755,23 @@ body {
     cursor: grabbing;
 }
 
+.drag-ghost {
+    position: fixed;
+    width: calc(var(--sq-size) * 0.85);
+    height: calc(var(--sq-size) * 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 200;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.42));
+}
+
+.drag-ghost svg {
+    width: 100%;
+    height: 100%;
+}
+
 .square:hover .piece-svg { transform: scale(1.08); }
 
 .square.selected .piece-svg {
@@ -987,7 +1004,22 @@ body {
 }
 
 .ctrl-btn:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+.ctrl-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: rgba(255,255,255,0.08);
+    color: var(--text-secondary);
+}
+.ctrl-btn:disabled:hover { background: var(--bg-card); border-color: rgba(255,255,255,0.08); }
 .ctrl-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+.control-note {
+    min-height: 20px;
+    margin-top: -2px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
 
 /* ============================================
    모달
