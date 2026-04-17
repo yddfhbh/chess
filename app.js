@@ -1718,10 +1718,25 @@ function finishDragMove(toRow, toCol) {
 // ============================================================
 //  로비 로직
 // ============================================================
-function selectMode(mode) {
+function updateModeSelectionUI() {
     document.querySelectorAll('.mode-btn').forEach(function(btn) { btn.classList.remove('active'); });
-    document.querySelector('.mode-btn[data-mode="' + mode + '"]').classList.add('active');
+    var activeModeBtn = document.querySelector('.mode-btn[data-mode="' + gameSetting.mode + '"]');
+    if (activeModeBtn) activeModeBtn.classList.add('active');
+
+    var localPanel = document.getElementById('local-mode-panel');
+    var localSelectBtn = document.getElementById('local-mode-select-btn');
+    var isLocalMode = gameSetting.mode === 'pvp';
+
+    if (localPanel) localPanel.classList.toggle('active', isLocalMode);
+    if (localSelectBtn) {
+        localSelectBtn.classList.toggle('active', isLocalMode);
+        localSelectBtn.textContent = isLocalMode ? '현재 선택됨' : '로컬 PvP 선택';
+    }
+}
+
+function selectMode(mode) {
     gameSetting.mode = mode;
+    updateModeSelectionUI();
     
     // ★ AI 설정 패널 토글
     var aiSettings = document.getElementById('ai-settings');
@@ -1890,6 +1905,35 @@ function startGame() {
     }
 }
 
+function returnToLobbyMode(mode) {
+    stopTimer(); gameOver = true;
+    cleanupDragState();
+    clearPremoveQueue();
+    drawOfferBy = null;
+    turnStartedAt = null;
+    finalGameResult = '*';
+    finalGameTermination = '';
+    gameEndedAt = null;
+    aiThinking = false;
+    showAIThinking(false);
+    if (stockfishWorker && gameSetting.mode === 'ai') {
+        stockfishWorker.postMessage('stop');
+        stockfishWorker.postMessage('quit');
+        stockfishWorker.terminate();
+        stockfishWorker = null;
+        engineReady = false;
+    }
+    document.getElementById('gameover-modal').classList.remove('active');
+    closeResignModal(true);
+    closePGNModal();
+    updatePGNActionButtons();
+    document.getElementById('promotion-modal').classList.remove('active');
+    document.getElementById('game-screen').classList.remove('active');
+    document.getElementById('lobby-screen').classList.add('active');
+    gameSetting.mode = mode || 'pvp';
+    selectMode(gameSetting.mode);
+}
+
 function backToLobby() {
     if (isOnlineMode() && !gameOver && onlineState.roomData && onlineState.roomData.status === 'playing') {
         resignGame();
@@ -1899,6 +1943,8 @@ function backToLobby() {
         cancelOnlineWaiting();
         resetOnlineSessionState();
     }
+    returnToLobbyMode('pvp');
+    return;
     stopTimer(); gameOver = true;
     cleanupDragState();
     clearPremoveQueue();
@@ -1943,7 +1989,7 @@ function getResultByWinnerColor(color) {
 }
 
 function isDrawOfferAvailableMode() {
-    return gameSetting.mode !== 'ai';
+    return isOnlineMode();
 }
 
 function getLastMoverColor() {
@@ -1981,6 +2027,11 @@ function updateDrawControls() {
     var acceptBtn = document.getElementById('accept-draw-btn');
     var statusEl = document.getElementById('draw-status-text');
     if (!offerBtn || !acceptBtn) return;
+
+    var showDrawControls = isDrawOfferAvailableMode();
+    offerBtn.style.display = showDrawControls ? '' : 'none';
+    acceptBtn.style.display = showDrawControls ? '' : 'none';
+    if (!showDrawControls) return;
 
     var offerColor = getDrawOfferActorColor();
     var acceptColor = getDrawAcceptActorColor();
@@ -3172,6 +3223,10 @@ function initGame() {
 }
 
 function restartGame() {
+    if (gameSetting.mode === 'ai') {
+        returnToLobbyMode('ai');
+        return;
+    }
     if (isOnlineMode()) {
         alert('온라인 대전에서는 재시작 대신 새 방을 만들거나 다시 매칭해주세요.');
         return;
@@ -3199,6 +3254,7 @@ window.addEventListener('DOMContentLoaded', function() {
     updatePGNActionButtons();
     updateEndGameButton();
     updateGameOverModalButtons();
+    updateModeSelectionUI();
     document.addEventListener('mousemove', function(e) {
         handlePointerDragMove(e);
     });

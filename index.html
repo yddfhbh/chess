@@ -6,7 +6,6 @@
     <title>체스 게임 | Chess Game</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♟</text></svg>">
     <link rel="stylesheet" href="styles.css">
-
 </head>
 <body>
 
@@ -21,16 +20,9 @@
             <p class="subtitle">CHESS GAME</p>
         </div>
 
-        <!-- 게임 모드 -->
         <div class="lobby-section">
-            <h2>🎮 게임 모드</h2>
+            <h2>게임 모드</h2>
             <div class="mode-grid">
-                <div class="mode-btn active" data-mode="pvp" onclick="selectMode('pvp')">
-                    <span class="mode-icon">👥</span>
-                    <span class="mode-label">로컬 PvP</span>
-                    <span class="mode-desc">한 화면에서 두 명이 플레이</span>
-                </div>
-                <!-- ★ AI 모드 활성화 -->
                 <div class="mode-btn" data-mode="ai" onclick="selectMode('ai')">
                     <span class="mode-icon">🤖</span>
                     <span class="mode-label">vs AI</span>
@@ -43,28 +35,27 @@
                 </div>
             </div>
 
-            <!-- ★ AI 설정 패널 -->
             <div class="ai-settings" id="ai-settings">
-                <h3>🤖 AI 설정</h3>
-                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">내 색상 선택</label>
+                <h3>AI 설정</h3>
+                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">플레이 색상 선택</label>
                 <div class="ai-color-select">
-                    <div class="ai-color-btn active" data-color="white" onclick="selectAIColor('white')">⬜ 백 (선공)</div>
-                    <div class="ai-color-btn" data-color="black" onclick="selectAIColor('black')">⬛ 흑 (후공)</div>
-                    <div class="ai-color-btn" data-color="random" onclick="selectAIColor('random')">🎲 랜덤</div>
+                    <div class="ai-color-btn active" data-color="white" onclick="selectAIColor('white')">백 (선공)</div>
+                    <div class="ai-color-btn" data-color="black" onclick="selectAIColor('black')">흑 (후공)</div>
+                    <div class="ai-color-btn" data-color="random" onclick="selectAIColor('random')">랜덤 선택</div>
                 </div>
-                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">AI 난이도 (Skill Level)</label>
+                <label style="display:block; font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">AI 레벨 (Skill Level)</label>
                 <div class="ai-level-select">
                     <div class="ai-level-header">
                         <div>
                             <div class="ai-level-value" id="ai-level-value">Lv. 10</div>
-                            <div class="ai-level-caption" id="ai-level-caption">상급</div>
+                            <div class="ai-level-caption" id="ai-level-caption">중급</div>
                         </div>
                         <div class="ai-level-max">1 ~ 20</div>
                     </div>
                     <div class="ai-level-controls">
-                        <button type="button" class="ai-level-step" onclick="adjustAILevel(-1)" aria-label="AI 난이도 낮추기">-</button>
+                        <button type="button" class="ai-level-step" onclick="adjustAILevel(-1)" aria-label="AI 레벨 낮추기">-</button>
                         <input id="ai-level-range" class="ai-level-range" type="range" min="1" max="20" step="1" value="10" oninput="selectAILevel(this.value)" />
-                        <button type="button" class="ai-level-step" onclick="adjustAILevel(1)" aria-label="AI 난이도 높이기">+</button>
+                        <button type="button" class="ai-level-step" onclick="adjustAILevel(1)" aria-label="AI 레벨 높이기">+</button>
                     </div>
                     <div class="ai-level-scale">
                         <span>1</span>
@@ -74,7 +65,7 @@
             </div>
 
             <div class="online-settings" id="online-settings">
-                <h3>🌐 온라인 대전</h3>
+                <h3>온라인 대전</h3>
                 <p class="online-help">닉네임을 자유롭게 입력한 뒤 방을 만들거나 친구의 방 코드로 참가할 수 있습니다.</p>
                 <div class="online-auth-row">
                     <span class="online-pill" id="online-auth-status">닉네임을 입력하세요</span>
@@ -105,9 +96,19 @@
             </div>
         </div>
 
-        <!-- 시간 설정 -->
+        <div class="lobby-section local-mode-section">
+            <h2>로컬 PvP</h2>
+            <div class="local-mode-panel active" id="local-mode-panel">
+                <div class="local-mode-copy">
+                    <div class="local-mode-title">같은 화면에서 두 명이 번갈아 플레이</div>
+                    <p class="local-mode-desc">온라인 연결 없이 바로 대국할 수 있습니다. 아래 시간 설정과 플레이어 이름을 맞춘 뒤 시작하세요.</p>
+                </div>
+                <button type="button" class="local-mode-btn active" id="local-mode-select-btn" onclick="selectMode('pvp')">현재 선택됨</button>
+            </div>
+        </div>
+
         <div class="lobby-section">
-            <h2>⏱️ 시간 설정</h2>
+            <h2>대국 시간 설정</h2>
             <div class="time-presets">
                 <div class="preset-btn" data-minutes="1" data-increment="0" onclick="applyPreset(1, 0, this)">
                     <span class="time-value">1분</span><span class="time-label">BULLET</span>
@@ -143,16 +144,16 @@
                     <span class="time-value">30분</span><span class="time-label">CLASSICAL</span>
                 </div>
                 <div class="preset-btn" data-minutes="0" data-increment="0" onclick="applyPreset(0, 0, this)">
-                    <span class="time-value">∞</span><span class="time-label">무제한</span>
+                    <span class="time-value">무제한</span><span class="time-label">NO LIMIT</span>
                 </div>
             </div>
 
-            <h3 style="font-size:0.95em; color:var(--text-secondary); margin-bottom:12px;">⚙️ 직접 설정</h3>
+            <h3 style="font-size:0.95em; color:var(--text-secondary); margin-bottom:12px;">직접 설정</h3>
             <div class="custom-time">
                 <div class="time-input-group">
                     <label>기본 시간</label>
                     <div class="time-adjuster">
-                        <button onclick="adjustTime('minutes', -1)">−</button>
+                        <button onclick="adjustTime('minutes', -1)">-</button>
                         <input type="number" id="custom-minutes" value="5" min="0" max="180" onchange="updateCustomPreset()">
                         <button onclick="adjustTime('minutes', 1)">+</button>
                         <span>분</span>
@@ -161,7 +162,7 @@
                 <div class="time-input-group">
                     <label>추가 시간</label>
                     <div class="time-adjuster">
-                        <button onclick="adjustTime('increment', -1)">−</button>
+                        <button onclick="adjustTime('increment', -1)">-</button>
                         <input type="number" id="custom-increment" value="0" min="0" max="60" onchange="updateCustomPreset()">
                         <button onclick="adjustTime('increment', 1)">+</button>
                         <span>초</span>
@@ -169,26 +170,25 @@
                 </div>
             </div>
             <div class="time-summary">
-                <span id="time-summary-text">⏱️ 각 플레이어: 5분 | 추가 시간(수 당): 없음</span>
+                <span id="time-summary-text">각 플레이어: 5분 | 추가 시간(초): 없음</span>
             </div>
         </div>
 
-        <!-- 플레이어 이름 -->
         <div class="lobby-section" id="local-player-section">
-            <h2>👤 플레이어</h2>
+            <h2>플레이어</h2>
             <div class="player-inputs">
                 <div class="player-input-group">
-                    <label>⬜ 백 플레이어</label>
+                    <label>백 플레이어</label>
                     <input type="text" id="white-name" placeholder="Player 1" maxlength="20">
                 </div>
                 <div class="player-input-group">
-                    <label>⬛ 흑 플레이어</label>
+                    <label>흑 플레이어</label>
                     <input type="text" id="black-name" placeholder="Player 2" maxlength="20">
                 </div>
             </div>
         </div>
 
-        <button class="start-btn" id="start-game-btn" onclick="startGame()">🎯 게임 시작</button>
+        <button class="start-btn" id="start-game-btn" onclick="startGame()">게임 시작</button>
     </div>
 </div>
 
@@ -206,18 +206,17 @@
             </div>
             <div class="board-labels-file" id="rank-labels-bottom"></div>
             <div class="status-bar">
-                <span id="status">⚪ 백의 차례</span>
+                <span id="status">백의 차례</span>
             </div>
-            <!-- ★ AI 생각 중 표시 -->
             <div class="ai-thinking-indicator" id="ai-thinking">
                 <div class="ai-spinner"></div>
-                <span>🤖 AI가 생각하고 있습니다...</span>
+                <span>AI가 생각 중입니다...</span>
             </div>
         </div>
 
         <div class="side-panel">
             <div class="player-card">
-                <div class="player-avatar black-avatar">⚫</div>
+                <div class="player-avatar black-avatar">♚</div>
                 <div class="player-info">
                     <div class="player-header">
                         <span class="player-side-label">흑</span>
@@ -235,12 +234,12 @@
             </div>
 
             <div class="move-history">
-                <h3>📋 기보</h3>
+                <h3>기보</h3>
                 <div id="move-list"></div>
             </div>
 
             <div class="player-card">
-                <div class="player-avatar white-avatar">⚪</div>
+                <div class="player-avatar white-avatar">♔</div>
                 <div class="player-info">
                     <div class="player-header">
                         <span class="player-side-label">백</span>
@@ -277,7 +276,7 @@
         <p id="gameover-message"></p>
         <div class="modal-buttons">
             <button class="modal-btn secondary" id="open-pgn-btn" onclick="openPGNModal()">PGN 보기</button>
-            <button class="modal-btn primary" id="restart-game-btn" onclick="restartGame()">🔄 재시작</button>
+            <button class="modal-btn primary" id="restart-game-btn" onclick="restartGame()">🔄 재대국</button>
             <button class="modal-btn secondary" onclick="backToLobby()">🏠 로비로</button>
         </div>
     </div>
@@ -313,18 +312,17 @@
 
 <div id="promotion-modal" class="modal-overlay">
     <div class="modal-content">
-        <h2>♛ 프로모션</h2>
-        <p>승급할 기물을 선택하세요</p>
+        <h2>폰 프로모션</h2>
+        <p>승급할 기물을 선택하세요.</p>
         <div id="promotion-choices"></div>
     </div>
 </div>
 
-<!-- ★ 엔진 로딩 오버레이 -->
 <div id="engine-loading" class="engine-loading-overlay">
     <div class="engine-loading-spinner"></div>
     <div class="engine-loading-text">
-        🤖 Stockfish 18 엔진을 로딩하고 있습니다...<br>
-        <span style="font-size:0.85em; opacity:0.7;">처음 로딩 시 시간이 걸릴 수 있습니다.</span>
+        Stockfish 18 엔진을 로딩하고 있습니다...<br>
+        <span style="font-size:0.85em; opacity:0.7;">처음 로딩 시 몇 초 정도 걸릴 수 있습니다.</span>
     </div>
 </div>
 
