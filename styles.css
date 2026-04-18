@@ -23,6 +23,7 @@
 
     --sq-size: calc((100vh - 80px) / 8);
     --board-size: calc(var(--sq-size) * 8);
+    --piece-size-ratio: 0.85;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1049,8 +1050,8 @@ body {
 }
 
 .piece-svg {
-    width: 85%;
-    height: 85%;
+    width: calc(var(--piece-size-ratio) * 100%);
+    height: calc(var(--piece-size-ratio) * 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1074,8 +1075,8 @@ body {
 
 .drag-ghost {
     position: fixed;
-    width: calc(var(--sq-size) * 0.85);
-    height: calc(var(--sq-size) * 0.85);
+    width: calc(var(--sq-size) * var(--piece-size-ratio));
+    height: calc(var(--sq-size) * var(--piece-size-ratio));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1712,6 +1713,7 @@ body {
 @media (max-width: 768px) {
     :root {
         --sq-size: min(58px, calc((100vw - 38px) / 8));
+        --piece-size-ratio: 0.9;
     }
 
     #intro-screen.active {
@@ -2147,6 +2149,11 @@ body {
 }
 
 @media (max-width: 500px) {
+    :root {
+        --sq-size: min(46px, calc((100vw - 30px) / 8));
+        --piece-size-ratio: 0.93;
+    }
+
     #intro-screen.active {
         padding: 14px;
     }
@@ -2168,10 +2175,6 @@ body {
     .intro-board-piece-svg {
         width: 93%;
         height: 93%;
-    }
-
-    :root {
-        --sq-size: min(46px, calc((100vw - 30px) / 8));
     }
 
     .intro-shell {
@@ -2300,6 +2303,7 @@ body {
 @media (max-width: 380px) {
     :root {
         --sq-size: min(40px, calc((100vw - 24px) / 8));
+        --piece-size-ratio: 0.95;
     }
 
     .intro-feature {
