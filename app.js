@@ -858,11 +858,19 @@ function handleEndGameControl() {
     resignGame();
 }
 
+function retryAIGame() {
+    if (gameSetting.mode !== 'ai' || !gameOver) return;
+    restartGame();
+}
+
 function updateControlButtons() {
     var undoBtn = document.getElementById('undo-copy-btn');
     var flipBtn = document.getElementById('flip-save-btn');
+    var retryBtn = document.getElementById('retry-ai-btn');
     var endBtn = document.getElementById('end-game-btn');
+    var controlsEl = document.querySelector('.controls');
     var canUsePGN = hasPGNData();
+    var showAIRetry = gameOver && gameSetting.mode === 'ai';
 
     if (undoBtn) {
         undoBtn.textContent = gameOver ? '기보 복사' : '⏪ 되돌리기';
@@ -872,11 +880,16 @@ function updateControlButtons() {
         flipBtn.textContent = gameOver ? '기보 저장' : '🔄 뒤집기';
         flipBtn.disabled = gameOver ? !canUsePGN : false;
     }
+    if (retryBtn) {
+        retryBtn.style.display = showAIRetry ? '' : 'none';
+        retryBtn.disabled = !showAIRetry;
+    }
     if (endBtn) {
         endBtn.textContent = gameOver ? '🏠 로비' : (isLocalPvpMode() ? '🚪 종료' : '🏳️ 기권');
         endBtn.classList.toggle('danger', !gameOver);
         endBtn.disabled = false;
     }
+    if (controlsEl) controlsEl.classList.toggle('ai-rematch-controls', showAIRetry);
 }
 
 function getViewerColorForResult() {
