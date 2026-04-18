@@ -1014,6 +1014,7 @@ function finalizeOnlineWinByOpponentLeaving() {
 
 function applyOnlineGameState(serializedState) {
     serializedState = normalizeSerializedOnlineGameState(serializedState);
+    var pendingInteraction = capturePendingInteraction();
     onlineState.applyingRemoteState = true;
     cleanupDragState();
     restoreState(serializedState.state);
@@ -1038,7 +1039,9 @@ function applyOnlineGameState(serializedState) {
     rebuildMoveListFromHistory();
     document.getElementById('gameover-modal').classList.remove('active');
     updatePGNActionButtons();
+    restorePendingInteraction(pendingInteraction);
     renderBoard();
+    reattachDragStateToBoard();
     updateUI();
     if (gameOver) {
         showResolvedGameOver();
@@ -1733,6 +1736,34 @@ function canDragPiece(row, col) {
     return canStartPremove(row, col);
 }
 
+function getInteractionStateForSquare(row, col) {
+    if (!Number.isInteger(row) || !Number.isInteger(col)) return null;
+
+    if (canControlPiece(row, col)) {
+        var livePiece = board[row][col];
+        var liveMoves = legalMoves(row, col);
+        if (!livePiece || liveMoves.length === 0) return null;
+        return {
+            mode: 'live',
+            piece: livePiece,
+            moves: liveMoves,
+            pieceMarkup: PIECE_SVG[livePiece] || ''
+        };
+    }
+
+    var premoveState = buildPremovePreviewState();
+    if (!canStartPremove(row, col, premoveState)) return null;
+    var premovePiece = premoveState.board[row][col];
+    var premoveMoves = relaxedPremoveMovesForState(premoveState, row, col);
+    if (!premovePiece || premoveMoves.length === 0) return null;
+    return {
+        mode: 'premove',
+        piece: premovePiece,
+        moves: premoveMoves,
+        pieceMarkup: PIECE_SVG[premovePiece] || ''
+    };
+}
+
 function setSelection(row, col, moves, mode, piece) {
     selectedSquare = [row, col];
     possibleMoves = moves.slice();
@@ -1799,6 +1830,12 @@ function destroyDragGhost() {
     if (!dragGhostEl) return;
     if (dragGhostEl.parentNode) dragGhostEl.parentNode.removeChild(dragGhostEl);
     dragGhostEl = null;
+}
+
+function getPieceElementAtSquare(row, col) {
+    var square = document.querySelector('.square[data-row="' + row + '"][data-col="' + col + '"]');
+    if (!square) return null;
+    return square.querySelector('.piece-svg');
 }
 
 function ensureDragGhost(pieceMarkup) {
@@ -1880,6 +1917,69 @@ function cleanupDragState() {
     possibleMoves = [];
     selectedInteractionMode = null;
     selectedPiece = null;
+}
+
+function capturePendingInteraction() {
+    var activeMode = dragState ? dragState.mode : selectedInteractionMode;
+    if (activeMode !== 'premove') return null;
+
+    var fromRow = dragState ? dragState.fromRow : (selectedSquare ? selectedSquare[0] : null);
+    var fromCol = dragState ? dragState.fromCol : (selectedSquare ? selectedSquare[1] : null);
+    if (!Number.isInteger(fromRow) || !Number.isInteger(fromCol)) return null;
+
+    return {
+        fromRow: fromRow,
+        fromCol: fromCol,
+        hadDrag: !!dragState,
+        startClientX: dragState ? dragState.startClientX : 0,
+        startClientY: dragState ? dragState.startClientY : 0,
+        lastClientX: dragState ? dragState.lastClientX : 0,
+        lastClientY: dragState ? dragState.lastClientY : 0,
+        dragOffsetX: dragState ? dragState.dragOffsetX : 0,
+        dragOffsetY: dragState ? dragState.dragOffsetY : 0,
+        hasMoved: !!(dragState && dragState.hasMoved)
+    };
+}
+
+function restorePendingInteraction(snapshot) {
+    if (!snapshot || gameOver) return false;
+
+    var interaction = getInteractionStateForSquare(snapshot.fromRow, snapshot.fromCol);
+    if (!interaction) return false;
+
+    setSelection(snapshot.fromRow, snapshot.fromCol, interaction.moves, interaction.mode, interaction.piece);
+    if (!snapshot.hadDrag) return true;
+
+    dragState = {
+        fromRow: snapshot.fromRow,
+        fromCol: snapshot.fromCol,
+        moves: interaction.moves.slice(),
+        mode: interaction.mode,
+        piece: interaction.piece,
+        pieceMarkup: interaction.pieceMarkup,
+        sourceEl: null,
+        startClientX: snapshot.startClientX,
+        startClientY: snapshot.startClientY,
+        lastClientX: snapshot.lastClientX,
+        lastClientY: snapshot.lastClientY,
+        dragOffsetX: snapshot.dragOffsetX,
+        dragOffsetY: snapshot.dragOffsetY,
+        hasMoved: snapshot.hasMoved
+    };
+    return true;
+}
+
+function reattachDragStateToBoard() {
+    if (!dragState) return;
+    dragState.sourceEl = getPieceElementAtSquare(dragState.fromRow, dragState.fromCol);
+    if (dragState.sourceEl && dragState.hasMoved) {
+        dragState.sourceEl.classList.add('dragging');
+    }
+    applyDragHighlights();
+    if (dragState.hasMoved) {
+        updateDragGhostPosition(dragState.lastClientX, dragState.lastClientY);
+        refreshPointerDragTarget(dragState.lastClientX, dragState.lastClientY);
+    }
 }
 
 function releaseDragState(preserveSelection) {
@@ -1967,20 +2067,11 @@ function endPointerDragFromPoint(clientX, clientY, shouldCommit) {
 }
 
 function startPieceDrag(row, col, pieceEl, event) {
-    var mode = canControlPiece(row, col) ? 'live' : (canStartPremove(row, col) ? 'premove' : null);
-    if (!mode) {
+    var interaction = getInteractionStateForSquare(row, col);
+    if (!interaction) {
         if (event && event.preventDefault) event.preventDefault();
         return;
     }
-
-    var previewState = mode === 'premove' ? buildPremovePreviewState() : null;
-    var moves = mode === 'live' ? legalMoves(row, col) : relaxedPremoveMovesForState(previewState, row, col);
-    if (moves.length === 0) {
-        if (event && event.preventDefault) event.preventDefault();
-        return;
-    }
-
-    var piece = mode === 'live' ? board[row][col] : previewState.board[row][col];
     var point = getClientPointFromEvent(event);
 
     cleanupDragState();
@@ -1988,10 +2079,10 @@ function startPieceDrag(row, col, pieceEl, event) {
     dragState = {
         fromRow: row,
         fromCol: col,
-        moves: moves,
-        mode: mode,
-        piece: piece,
-        pieceMarkup: pieceEl ? pieceEl.innerHTML : '',
+        moves: interaction.moves.slice(),
+        mode: interaction.mode,
+        piece: interaction.piece,
+        pieceMarkup: pieceEl ? pieceEl.innerHTML : interaction.pieceMarkup,
         sourceEl: pieceEl || null,
         startClientX: point ? point.clientX : 0,
         startClientY: point ? point.clientY : 0,
@@ -2001,7 +2092,7 @@ function startPieceDrag(row, col, pieceEl, event) {
         dragOffsetY: pieceRect && point ? (point.clientY - pieceRect.top) : 0,
         hasMoved: false
     };
-    setSelection(row, col, moves, mode, piece);
+    setSelection(row, col, interaction.moves, interaction.mode, interaction.piece);
     applyDragHighlights();
 
     if (pieceEl) pieceEl.classList.add('dragging');
@@ -2840,6 +2931,7 @@ function isInsufficientMaterial() {
 }
 
 function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
+    var pendingInteraction = capturePendingInteraction();
     cleanupDragState();
     boardHistory.push(cloneState());
     var piece = board[fromRow][fromCol];
@@ -2928,10 +3020,13 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
         setGameConclusion('1/2-1/2', '50수 규칙');
         gameOver = true; stopTimer(); showResolvedGameOver();
     }
+    restorePendingInteraction(pendingInteraction);
     refreshTurnStartTimestamp();
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
     if (!gameOver && tryExecutePremove()) return;
-    renderBoard(); updateUI();
+    renderBoard();
+    reattachDragStateToBoard();
+    updateUI();
 
     if (isOnlineMode() && !onlineState.applyingRemoteState) {
         syncOnlineGameState(gameOver ? 'finish' : 'move');
