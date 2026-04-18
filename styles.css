@@ -216,6 +216,14 @@ body {
     height: 100%;
 }
 
+.intro-feature-box {
+    padding: 14px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 18px 32px rgba(0,0,0,0.16);
+}
+
 .intro-feature-list {
     display: grid;
     gap: 12px;
@@ -232,11 +240,11 @@ body {
 }
 
 .intro-feature {
-    min-height: 62px;
-    padding: 16px 18px;
-    border-radius: 18px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
+    min-height: 52px;
+    padding: 12px 10px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
     color: var(--text-primary);
     font-size: 0.96em;
     font-weight: 700;
@@ -244,7 +252,7 @@ body {
     align-items: center;
     justify-content: center;
     text-align: center;
-    box-shadow: 0 14px 28px rgba(0,0,0,0.16);
+    box-shadow: none;
 }
 
 /* ============================================
@@ -1291,7 +1299,7 @@ body {
 .move-history {
     background: var(--bg-card);
     border-radius: 12px;
-    padding: 14px;
+    padding: 12px;
     border: 1px solid rgba(255,255,255,0.05);
     flex: 1;
     min-height: 0;
@@ -1311,6 +1319,7 @@ body {
 
 #move-list {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     font-family: 'Courier New', monospace;
     font-size: 0.9em;
@@ -1329,6 +1338,42 @@ body {
     color: var(--gold);
     text-align: center;
     flex-shrink: 0;
+}
+
+.history-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+
+.history-nav-btn {
+    min-height: 36px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.92em;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.history-nav-btn:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.2);
+}
+
+.history-nav-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: rgba(255,255,255,0.02);
+    border-color: rgba(255,255,255,0.08);
+    color: var(--text-secondary);
 }
 
 .move-entry {
@@ -1716,6 +1761,11 @@ body {
         border-radius: 16px;
     }
 
+    .intro-board-piece-svg {
+        width: 90%;
+        height: 90%;
+    }
+
     #intro-board-preview-primary {
         grid-column: auto;
         grid-row: auto;
@@ -1731,6 +1781,11 @@ body {
         grid-row: auto;
         gap: 10px;
         height: auto;
+    }
+
+    .intro-feature-box {
+        padding: 10px;
+        border-radius: 18px;
     }
 
     .intro-feature-list {
@@ -2020,27 +2075,44 @@ body {
 
     .controls {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
     }
 
+    .controls.online-controls {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .ctrl-btn {
-        min-height: 46px;
-        padding: 12px 10px;
+        min-height: 44px;
+        padding: 10px 8px;
         border-radius: 12px;
-        font-size: 0.82em;
+        font-size: 0.76em;
+        line-height: 1.2;
+        white-space: normal;
     }
 
     .move-history {
-        min-height: 180px;
-        max-height: 220px;
-        padding: 12px;
+        min-height: 168px;
+        max-height: 208px;
+        padding: 11px;
         border-radius: 16px;
     }
 
     .move-entry {
         grid-template-columns: 30px 1fr 1fr;
         padding: 4px 0;
+    }
+
+    .history-nav {
+        gap: 5px;
+        margin-top: 8px;
+        padding-top: 8px;
+    }
+
+    .history-nav-btn {
+        min-height: 34px;
+        font-size: 0.82em;
     }
 
     .modal-content,
@@ -2093,6 +2165,11 @@ body {
         max-width: 100%;
     }
 
+    .intro-board-piece-svg {
+        width: 93%;
+        height: 93%;
+    }
+
     :root {
         --sq-size: min(46px, calc((100vw - 30px) / 8));
     }
@@ -2128,6 +2205,11 @@ body {
         gap: 6px;
     }
 
+    .intro-feature-box {
+        padding: 8px;
+        border-radius: 16px;
+    }
+
     .intro-feature {
         min-height: 42px;
         padding: 7px 5px;
@@ -2158,12 +2240,30 @@ body {
     .ai-level-controls { grid-template-columns: 40px 1fr 40px; }
     .ai-level-step { width: 40px; height: 40px; }
     .online-auth-row { flex-direction: column; }
-    .controls { grid-template-columns: 1fr; }
+    .controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+    }
+    .controls.online-controls {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
     .player-timer { font-size: 1.16em; }
     .player-clock-stack { min-width: 68px; }
     .first-move-timer { font-size: 0.66em; }
-    .ctrl-btn { font-size: 0.8em; padding: 8px; }
-    .move-history { max-height: 190px; }
+    .ctrl-btn {
+        min-height: 40px;
+        font-size: 0.68em;
+        padding: 8px 4px;
+        line-height: 1.15;
+    }
+    .move-history {
+        min-height: 156px;
+        max-height: 182px;
+    }
+    .history-nav-btn {
+        min-height: 32px;
+        font-size: 0.76em;
+    }
     .modal-content { width: calc(100vw - 24px); }
     .time-presets {
         grid-template-columns: repeat(4, minmax(0, 1fr));

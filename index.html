@@ -36,10 +36,12 @@
             </div>
             <div class="intro-board-preview" id="intro-board-preview-secondary"></div>
             <div class="intro-side-stack">
+            <div class="intro-feature-box">
             <div class="intro-feature-list">
                 <div class="intro-feature">로컬 2인 대전</div>
                 <div class="intro-feature">최고급$$AI$$무료증정</div>
                 <div class="intro-feature">온라인 매치</div>
+            </div>
             </div>
             <div class="intro-actions">
                 <button type="button" class="modal-btn primary intro-start-btn" id="intro-start-btn" onclick="enterLobby()">게임 시작</button>
@@ -193,6 +195,12 @@
                 <h3>기보</h3>
                 <div id="move-list"></div>
                 <div id="move-result-summary" class="move-result-summary" style="display:none;"></div>
+                <div class="history-nav" aria-label="기보 포지션 탐색">
+                    <button type="button" class="history-nav-btn" id="history-first-btn" onclick="jumpToHistoryFirst()" aria-label="가장 첫 포지션 보기">&lt;&lt;</button>
+                    <button type="button" class="history-nav-btn" id="history-prev-btn" onclick="stepHistoryBackward()" aria-label="한 수 전 포지션 보기">&lt;</button>
+                    <button type="button" class="history-nav-btn" id="history-next-btn" onclick="stepHistoryForward()" aria-label="한 수 앞 포지션 보기">&gt;</button>
+                    <button type="button" class="history-nav-btn" id="history-latest-btn" onclick="jumpToHistoryLatest()" aria-label="가장 최신 포지션 보기">&gt;&gt;</button>
+                </div>
             </div>
 
             <div class="player-card white-player-card" id="white-player-card">
