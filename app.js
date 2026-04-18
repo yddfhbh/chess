@@ -105,6 +105,8 @@ var resignModalPending = false;
 var drawOfferBy = null;
 var suppressBoardClickUntil = 0;
 var dragGhostEl = null;
+var moveSoundContext = null;
+var moveSoundUnlockBound = false;
 
 // ★ ============================================================
 //  Stockfish WASM 엔진 관련 변수
@@ -112,6 +114,71 @@ var dragGhostEl = null;
 var stockfishWorker = null;
 var engineReady = false;
 var aiThinking = false;
+
+function ensureMoveSoundContext() {
+    if (moveSoundContext) return moveSoundContext;
+    var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    try {
+        moveSoundContext = new AudioContextClass();
+    } catch (err) {
+        moveSoundContext = null;
+    }
+    return moveSoundContext;
+}
+
+function unlockMoveSound() {
+    var ctx = ensureMoveSoundContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended' && ctx.resume) {
+        ctx.resume().catch(function() {});
+    }
+}
+
+function bindMoveSoundUnlock() {
+    if (moveSoundUnlockBound) return;
+    moveSoundUnlockBound = true;
+    ['pointerdown', 'touchstart', 'keydown'].forEach(function(eventName) {
+        document.addEventListener(eventName, unlockMoveSound, { passive: true });
+    });
+}
+
+function scheduleMoveSound(ctx) {
+    var now = ctx.currentTime;
+    var master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.14, now + 0.01);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    master.connect(ctx.destination);
+
+    var oscA = ctx.createOscillator();
+    oscA.type = 'triangle';
+    oscA.frequency.setValueAtTime(660, now);
+    oscA.frequency.exponentialRampToValueAtTime(420, now + 0.12);
+    oscA.connect(master);
+    oscA.start(now);
+    oscA.stop(now + 0.12);
+
+    var oscB = ctx.createOscillator();
+    oscB.type = 'square';
+    oscB.frequency.setValueAtTime(320, now + 0.02);
+    oscB.frequency.exponentialRampToValueAtTime(210, now + 0.11);
+    oscB.connect(master);
+    oscB.start(now + 0.02);
+    oscB.stop(now + 0.11);
+}
+
+function playMoveSound() {
+    var ctx = ensureMoveSoundContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended' && ctx.resume) {
+        ctx.resume().then(function() {
+            scheduleMoveSound(ctx);
+        }).catch(function() {});
+        return;
+    }
+    if (ctx.state === 'running') scheduleMoveSound(ctx);
+}
 
 var FIREBASE_CONFIG = {
     apiKey: "AIzaSyCQfoxyy3clAsRTN37Pw8_bvXNAgRXByhk",
@@ -2679,6 +2746,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     var hasLegal = hasAnyLegalMoves(currentTurn);
     if (inCheck) moveNotation += hasLegal ? '+' : '#';
     addMoveToHistory(moveNotation, color, moveDurationMs, clockAfterMove);
+    playMoveSound();
 
     if (!hasLegal) {
         drawOfferBy = null;
@@ -3488,6 +3556,7 @@ function restartGame() {
 }
 
 window.addEventListener('DOMContentLoaded', function() {
+    bindMoveSoundUnlock();
     renderIntroBoardPreview('intro-board-preview-primary', false, INTRO_PRIMARY_PREVIEW_BOARD);
     renderIntroBoardPreview('intro-board-preview-secondary', true, INTRO_SECONDARY_PREVIEW_BOARD);
     updateIntroFeatureTexts();
