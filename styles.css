@@ -85,14 +85,14 @@ body {
     max-width: 100%;
     margin: 0 auto;
     align-items: center;
-    padding: 10px 12px;
+    padding: 7px 10px;
     border-radius: 999px;
     background: rgba(240, 208, 96, 0.12);
     border: 1px solid rgba(240, 208, 96, 0.24);
     color: var(--gold);
-    font-size: 0.9em;
+    font-size: 0.78em;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     white-space: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
@@ -193,8 +193,8 @@ body {
 }
 
 .intro-board-piece-svg {
-    width: 76%;
-    height: 76%;
+    width: 84%;
+    height: 84%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1609,7 +1609,7 @@ body {
     .intro-badge {
         width: 100%;
         margin: 0;
-        padding: 10px 14px;
+        padding: 8px 10px;
         border-radius: 18px;
         white-space: normal;
         text-align: left;
@@ -1938,7 +1938,7 @@ body {
     }
 
     .intro-badge {
-        font-size: 0.82em;
+        font-size: 0.72em;
     }
 
     .intro-copy {
