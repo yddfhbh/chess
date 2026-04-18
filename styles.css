@@ -948,6 +948,7 @@ body {
     justify-content: flex-start;
     flex-shrink: 0;
     width: calc(var(--board-size) + 36px);
+    touch-action: none;
 }
 
 .board-wrapper {
@@ -955,6 +956,7 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
+    touch-action: none;
 }
 
 .board-labels-file {

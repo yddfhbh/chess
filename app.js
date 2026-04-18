@@ -1910,6 +1910,7 @@ function applyDragHighlights() {
 }
 
 function cleanupDragState() {
+    releaseCapturedPointer();
     destroyDragGhost();
     clearDragHighlights();
     dragState = null;
@@ -1982,6 +1983,15 @@ function reattachDragStateToBoard() {
     }
 }
 
+function releaseCapturedPointer() {
+    if (!dragState || dragState.pointerId == null || !dragState.sourceEl || !dragState.sourceEl.releasePointerCapture) return;
+    try {
+        if (!dragState.sourceEl.hasPointerCapture || dragState.sourceEl.hasPointerCapture(dragState.pointerId)) {
+            dragState.sourceEl.releasePointerCapture(dragState.pointerId);
+        }
+    } catch (err) {}
+}
+
 function releaseDragState(preserveSelection) {
     if (!dragState) {
         if (!preserveSelection) cleanupDragState();
@@ -1996,6 +2006,7 @@ function releaseDragState(preserveSelection) {
         piece: dragState.piece
     } : null;
 
+    releaseCapturedPointer();
     destroyDragGhost();
     clearDragHighlights();
     dragState = null;
@@ -2028,6 +2039,7 @@ function hoverPointerDragTarget(row, col, squareEl) {
 
 function handlePointerDragMove(event) {
     if (!dragState) return;
+    if (dragState.pointerId != null && event && typeof event.pointerId === 'number' && event.pointerId !== dragState.pointerId) return;
     var point = getClientPointFromEvent(event);
     if (!point) return;
     if (event && event.cancelable) event.preventDefault();
@@ -2084,6 +2096,7 @@ function startPieceDrag(row, col, pieceEl, event) {
         piece: interaction.piece,
         pieceMarkup: pieceEl ? pieceEl.innerHTML : interaction.pieceMarkup,
         sourceEl: pieceEl || null,
+        pointerId: event && typeof event.pointerId === 'number' ? event.pointerId : null,
         startClientX: point ? point.clientX : 0,
         startClientY: point ? point.clientY : 0,
         lastClientX: point ? point.clientX : 0,
@@ -2096,6 +2109,9 @@ function startPieceDrag(row, col, pieceEl, event) {
     applyDragHighlights();
 
     if (pieceEl) pieceEl.classList.add('dragging');
+    if (pieceEl && dragState.pointerId != null && pieceEl.setPointerCapture) {
+        try { pieceEl.setPointerCapture(dragState.pointerId); } catch (err) {}
+    }
 
     if (event && event.dataTransfer) {
         event.dataTransfer.effectAllowed = 'move';
@@ -3123,12 +3139,18 @@ function renderBoard() {
                     pieceDiv.classList.add('draggable-piece');
                     pieceDiv.draggable = false;
                     (function(dr, dc, draggablePiece) {
-                        draggablePiece.addEventListener('mousedown', function(e) {
-                            startPointerDrag(dr, dc, draggablePiece, e);
-                        });
-                        draggablePiece.addEventListener('touchstart', function(e) {
-                            startPointerDrag(dr, dc, draggablePiece, e);
-                        }, { passive: false });
+                        if (window.PointerEvent) {
+                            draggablePiece.addEventListener('pointerdown', function(e) {
+                                startPointerDrag(dr, dc, draggablePiece, e);
+                            });
+                        } else {
+                            draggablePiece.addEventListener('mousedown', function(e) {
+                                startPointerDrag(dr, dc, draggablePiece, e);
+                            });
+                            draggablePiece.addEventListener('touchstart', function(e) {
+                                startPointerDrag(dr, dc, draggablePiece, e);
+                            }, { passive: false });
+                        }
                     })(displayR, displayC, pieceDiv);
                 }
                 square.appendChild(pieceDiv);
@@ -3874,30 +3896,50 @@ window.addEventListener('DOMContentLoaded', function() {
     updateGameOverModalButtons();
     updateModeSelectionUI();
     updateLobbyStartButton();
-    document.addEventListener('mousemove', function(e) {
-        handlePointerDragMove(e);
-    });
-    document.addEventListener('mouseup', function(e) {
-        endPointerDragFromPoint(e.clientX, e.clientY, true);
-    });
-    document.addEventListener('touchmove', function(e) {
-        handlePointerDragMove(e);
-    }, { passive: false });
-    document.addEventListener('touchend', function(e) {
-        var point = getClientPointFromEvent(e, true);
-        endPointerDragFromPoint(point ? point.clientX : -1, point ? point.clientY : -1, true);
-    }, { passive: false });
-    document.addEventListener('touchcancel', function() {
-        endPointerDragFromPoint(-1, -1, false);
-    }, { passive: false });
+    if (window.PointerEvent) {
+        document.addEventListener('pointermove', function(e) {
+            handlePointerDragMove(e);
+        }, { passive: false });
+        document.addEventListener('pointerup', function(e) {
+            if (dragState && dragState.pointerId != null && e.pointerId !== dragState.pointerId) return;
+            endPointerDragFromPoint(e.clientX, e.clientY, true);
+        });
+        document.addEventListener('pointercancel', function(e) {
+            if (dragState && dragState.pointerId != null && e.pointerId !== dragState.pointerId) return;
+            endPointerDragFromPoint(-1, -1, false);
+        });
+    } else {
+        document.addEventListener('mousemove', function(e) {
+            handlePointerDragMove(e);
+        });
+        document.addEventListener('mouseup', function(e) {
+            endPointerDragFromPoint(e.clientX, e.clientY, true);
+        });
+        document.addEventListener('touchmove', function(e) {
+            handlePointerDragMove(e);
+        }, { passive: false });
+        document.addEventListener('touchend', function(e) {
+            var point = getClientPointFromEvent(e, true);
+            endPointerDragFromPoint(point ? point.clientX : -1, point ? point.clientY : -1, true);
+        }, { passive: false });
+        document.addEventListener('touchcancel', function() {
+            endPointerDragFromPoint(-1, -1, false);
+        }, { passive: false });
+    }
     window.addEventListener('blur', function() {
         endPointerDragFromPoint(-1, -1, false);
     });
     var chessboardEl = document.getElementById('chessboard');
     if (chessboardEl) {
-        chessboardEl.addEventListener('touchmove', function(e) {
-            if (e.cancelable) e.preventDefault();
-        }, { passive: false });
+        if (window.PointerEvent) {
+            chessboardEl.addEventListener('pointermove', function(e) {
+                if (e.cancelable) e.preventDefault();
+            }, { passive: false });
+        } else {
+            chessboardEl.addEventListener('touchmove', function(e) {
+                if (e.cancelable) e.preventDefault();
+            }, { passive: false });
+        }
     }
     var onlineNameInput = document.getElementById('online-name');
     var introStartBtn = document.getElementById('intro-start-btn');
