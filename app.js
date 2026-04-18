@@ -1936,6 +1936,7 @@ function capturePendingInteraction() {
         startClientY: dragState ? dragState.startClientY : 0,
         lastClientX: dragState ? dragState.lastClientX : 0,
         lastClientY: dragState ? dragState.lastClientY : 0,
+        pointerId: dragState && typeof dragState.pointerId === 'number' ? dragState.pointerId : null,
         dragOffsetX: dragState ? dragState.dragOffsetX : 0,
         dragOffsetY: dragState ? dragState.dragOffsetY : 0,
         hasMoved: !!(dragState && dragState.hasMoved)
@@ -1959,6 +1960,7 @@ function restorePendingInteraction(snapshot) {
         piece: interaction.piece,
         pieceMarkup: interaction.pieceMarkup,
         sourceEl: null,
+        pointerId: typeof snapshot.pointerId === 'number' ? snapshot.pointerId : null,
         startClientX: snapshot.startClientX,
         startClientY: snapshot.startClientY,
         lastClientX: snapshot.lastClientX,
@@ -1973,6 +1975,9 @@ function restorePendingInteraction(snapshot) {
 function reattachDragStateToBoard() {
     if (!dragState) return;
     dragState.sourceEl = getPieceElementAtSquare(dragState.fromRow, dragState.fromCol);
+    if (dragState.sourceEl && dragState.pointerId != null && dragState.sourceEl.setPointerCapture) {
+        try { dragState.sourceEl.setPointerCapture(dragState.pointerId); } catch (err) {}
+    }
     if (dragState.sourceEl && dragState.hasMoved) {
         dragState.sourceEl.classList.add('dragging');
     }
