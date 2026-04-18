@@ -808,6 +808,76 @@ function getWinnerColorFromResult(result) {
     return null;
 }
 
+function getSimpleGameResultLabel() {
+    if (finalGameResult === '1-0') return '백 승리';
+    if (finalGameResult === '0-1') return '흑 승리';
+    if (finalGameResult === '1/2-1/2') return '무승부';
+    return '';
+}
+
+function updateWinnerHighlight() {
+    var whiteCard = document.getElementById('white-player-card');
+    var blackCard = document.getElementById('black-player-card');
+    var winnerColor = gameOver ? getWinnerColorFromResult(finalGameResult) : null;
+
+    if (whiteCard) whiteCard.classList.toggle('winner-card', winnerColor === 'white');
+    if (blackCard) blackCard.classList.toggle('winner-card', winnerColor === 'black');
+}
+
+function updateMoveResultSummary() {
+    var summaryEl = document.getElementById('move-result-summary');
+    if (!summaryEl) return;
+
+    var label = gameOver ? getSimpleGameResultLabel() : '';
+    summaryEl.textContent = label;
+    summaryEl.style.display = label ? 'block' : 'none';
+}
+
+function handleUndoOrCopyControl() {
+    if (gameOver) {
+        copyPGN();
+        return;
+    }
+    undoMove();
+}
+
+function handleFlipOrSaveControl() {
+    if (gameOver) {
+        downloadPGN();
+        return;
+    }
+    flipBoard();
+}
+
+function handleEndGameControl() {
+    if (gameOver) {
+        backToLobby();
+        return;
+    }
+    resignGame();
+}
+
+function updateControlButtons() {
+    var undoBtn = document.getElementById('undo-copy-btn');
+    var flipBtn = document.getElementById('flip-save-btn');
+    var endBtn = document.getElementById('end-game-btn');
+    var canUsePGN = hasPGNData();
+
+    if (undoBtn) {
+        undoBtn.textContent = gameOver ? '기보 복사' : '⏪ 되돌리기';
+        undoBtn.disabled = gameOver ? !canUsePGN : false;
+    }
+    if (flipBtn) {
+        flipBtn.textContent = gameOver ? '기보 저장' : '🔄 뒤집기';
+        flipBtn.disabled = gameOver ? !canUsePGN : false;
+    }
+    if (endBtn) {
+        endBtn.textContent = gameOver ? '🏠 로비' : (isLocalPvpMode() ? '🚪 종료' : '🏳️ 기권');
+        endBtn.classList.toggle('danger', !gameOver);
+        endBtn.disabled = false;
+    }
+}
+
 function getViewerColorForResult() {
     if (isOnlineMode()) return onlineState.playerColor;
     if (gameSetting.mode === 'ai') return gameSetting.playerColor;
@@ -2291,7 +2361,7 @@ function updateDrawControls() {
     var statusEl = document.getElementById('draw-status-text');
     if (!offerBtn || !acceptBtn) return;
 
-    var showDrawControls = isDrawOfferAvailableMode();
+    var showDrawControls = isDrawOfferAvailableMode() && !gameOver;
     offerBtn.style.display = showDrawControls ? '' : 'none';
     acceptBtn.style.display = showDrawControls ? '' : 'none';
     if (!showDrawControls) return;
@@ -2368,9 +2438,7 @@ function isLocalPvpMode() {
 }
 
 function updateEndGameButton() {
-    var btn = document.getElementById('end-game-btn');
-    if (!btn) return;
-    btn.textContent = isLocalPvpMode() ? '🚪 종료' : '🏳️ 기권';
+    updateControlButtons();
 }
 
 function updateGameOverModalButtons() {
@@ -2523,7 +2591,11 @@ function hasColorMadeMove(color) {
 }
 
 function shouldDelayClockForColor(color) {
-    return !hasColorMadeMove(color);
+    if (!color) return false;
+    if (isLocalPvpMode()) return !hasColorMadeMove(color);
+    if (isOnlineMode()) return !hasColorMadeMove(color);
+    if (gameSetting.mode === 'ai') return color === gameSetting.playerColor && !hasColorMadeMove(color);
+    return false;
 }
 
 function refreshTurnStartTimestamp() {
@@ -2804,7 +2876,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
 
     lastMoveFrom = [fromRow, fromCol]; lastMoveTo = [toRow, toCol];
     if (piece.toUpperCase() === 'P' || isCapture) halfMoveClock = 0; else halfMoveClock++;
-    if (!gameSetting.unlimited && firstMoveMade && gameSetting.increment > 0) {
+    if (!gameSetting.unlimited && gameSetting.increment > 0 && !isUntimedFirstMove) {
         if (color === 'white') whiteTime += gameSetting.increment; else blackTime += gameSetting.increment;
     }
     if (!firstMoveMade) firstMoveMade = true;
@@ -3013,7 +3085,11 @@ function showGameOver(title, message) {
     document.getElementById('gameover-message').textContent = message;
     updateGameOverModalButtons();
     updatePGNActionButtons();
-    document.getElementById('gameover-modal').classList.add('active');
+    document.getElementById('gameover-modal').classList.remove('active');
+    updateDrawControls();
+    updateWinnerHighlight();
+    updateMoveResultSummary();
+    updateControlButtons();
 }
 
 function updateUI() {
@@ -3045,6 +3121,9 @@ function updateUI() {
     });
     updateTimerDisplay();
     updateDrawControls();
+    updateWinnerHighlight();
+    updateMoveResultSummary();
+    updateControlButtons();
 }
 
 function onSquareClick(row, col) {
@@ -3126,12 +3205,19 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol, mode, movingPiece) {
     });
     updateTimerDisplay();
     updateDrawControls();
+    updateWinnerHighlight();
+    updateMoveResultSummary();
+    updateControlButtons();
 }
 */
 
 function updateUI() {
     syncSidePanelPerspective();
     var statusEl = document.getElementById('status');
+    if (statusEl && gameOver) {
+        statusEl.textContent = '';
+        statusEl.style.color = '';
+    }
     if (statusEl && !gameOver) {
         var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
         var icon = currentTurn === 'white' ? '⚪' : '⚫';
@@ -3159,6 +3245,9 @@ function updateUI() {
     });
     updateTimerDisplay();
     updateDrawControls();
+    updateWinnerHighlight();
+    updateMoveResultSummary();
+    updateControlButtons();
 }
 
 function formatTime(totalSeconds) {
@@ -3443,6 +3532,11 @@ function startTimer() {
         if (gameOver) { stopTimer(); return; }
         if (isOnlineMode() && !isLocalOnlineTurn()) {
             resetTimerTickAnchor();
+            return;
+        }
+        if (shouldDelayClockForColor(currentTurn)) {
+            resetTimerTickAnchor();
+            updateTimerDisplay();
             return;
         }
         var tickResult = consumeActiveTurnTime();

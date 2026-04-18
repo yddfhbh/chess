@@ -168,7 +168,7 @@
         </div>
 
         <div class="side-panel" id="game-side-panel">
-            <div class="player-card black-player-card">
+            <div class="player-card black-player-card" id="black-player-card">
                 <div class="player-avatar black-avatar">♚</div>
                 <div class="player-info">
                     <div class="player-header">
@@ -192,9 +192,10 @@
             <div class="move-history">
                 <h3>기보</h3>
                 <div id="move-list"></div>
+                <div id="move-result-summary" class="move-result-summary" style="display:none;"></div>
             </div>
 
-            <div class="player-card white-player-card">
+            <div class="player-card white-player-card" id="white-player-card">
                 <div class="player-avatar white-avatar">♔</div>
                 <div class="player-info">
                     <div class="player-header">
@@ -216,11 +217,11 @@
             </div>
 
             <div class="controls">
-                <button class="ctrl-btn" onclick="undoMove()">⏪ 되돌리기</button>
-                <button class="ctrl-btn" onclick="flipBoard()">🔄 뒤집기</button>
+                <button class="ctrl-btn" id="undo-copy-btn" onclick="handleUndoOrCopyControl()">⏪ 되돌리기</button>
+                <button class="ctrl-btn" id="flip-save-btn" onclick="handleFlipOrSaveControl()">🔄 뒤집기</button>
                 <button class="ctrl-btn" id="offer-draw-btn" onclick="offerDraw()">🤝 무승부 제안</button>
                 <button class="ctrl-btn" id="accept-draw-btn" onclick="acceptDraw()" disabled>✅ 무승부 수락</button>
-                <button class="ctrl-btn danger" id="end-game-btn" onclick="resignGame()">🏳️ 기권</button>
+                <button class="ctrl-btn danger" id="end-game-btn" onclick="handleEndGameControl()">🏳️ 기권</button>
             </div>
         </div>
     </div>
