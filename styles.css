@@ -1118,6 +1118,22 @@ body {
     flex-shrink: 0;
 }
 
+.side-panel.black-perspective > .player-card.white-player-card {
+    order: 1;
+}
+
+.side-panel.black-perspective > .move-history {
+    order: 2;
+}
+
+.side-panel.black-perspective > .player-card.black-player-card {
+    order: 3;
+}
+
+.side-panel.black-perspective > .controls {
+    order: 4;
+}
+
 .player-card {
     display: flex;
     align-items: center;
@@ -1191,10 +1207,45 @@ body {
 .player-timer.low-time { color: var(--danger); animation: pulse 1s infinite; }
 .player-timer.no-limit { font-size: 1.6em; color: var(--text-secondary); }
 
+.player-clock-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    margin-left: auto;
+    min-width: 84px;
+}
+
+.player-clock-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 4px;
+    width: 100%;
+}
+
 .increment-badge {
     font-size: 0.7em;
     color: var(--success);
     margin-left: 4px;
+}
+
+.first-move-timer {
+    min-height: 1.2em;
+    font-size: 0.72em;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.first-move-timer.expired {
+    color: var(--danger);
+}
+
+.first-move-timer.waiting {
+    color: var(--text-secondary);
 }
 
 .turn-indicator {
@@ -1857,6 +1908,10 @@ body {
         font-size: 1.25em;
     }
 
+    .player-clock-stack {
+        min-width: 76px;
+    }
+
     .captured-pieces {
         min-height: 20px;
     }
@@ -1977,6 +2032,8 @@ body {
     .online-auth-row { flex-direction: column; }
     .controls { grid-template-columns: 1fr; }
     .player-timer { font-size: 1.16em; }
+    .player-clock-stack { min-width: 68px; }
+    .first-move-timer { font-size: 0.66em; }
     .ctrl-btn { font-size: 0.8em; padding: 8px; }
     .move-history { max-height: 190px; }
     .modal-content { width: calc(100vw - 24px); }

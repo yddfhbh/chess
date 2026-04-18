@@ -85,6 +85,8 @@ var fullMoveNumber = 1;
 var whiteTime = 600;
 var blackTime = 600;
 var timerInterval = null;
+var timerLastTickAt = null;
+var TIMER_TICK_MS = 100;
 var gameOver = false;
 var isFlipped = false;
 var capturedByWhite = [];
@@ -552,6 +554,12 @@ function syncDisplayedPlayerNames() {
     if (blackNameEl) blackNameEl.textContent = gameSetting.blackName || '흑';
 }
 
+function syncSidePanelPerspective() {
+    var sidePanelEl = document.getElementById('game-side-panel');
+    if (!sidePanelEl) return;
+    sidePanelEl.classList.toggle('black-perspective', getControlledPlayerColor() === 'black');
+}
+
 function isOwnedInviteRoomWaiting() {
     return !!(
         onlineState.roomId &&
@@ -952,7 +960,8 @@ function applyOnlineGameState(serializedState) {
     gameStartedAt = serializedState.gameStartedAt ? new Date(serializedState.gameStartedAt) : new Date();
     gameEndedAt = serializedState.gameEndedAt ? new Date(serializedState.gameEndedAt) : null;
     gameOver = finalGameResult !== '*';
-    turnStartedAt = gameOver ? null : (isLocalOnlineTurn() ? Date.now() : null);
+    turnStartedAt = null;
+    if (!gameOver && isLocalOnlineTurn()) refreshTurnStartTimestamp();
     stopTimer();
     aiThinking = false;
     showAIThinking(false);
@@ -1179,7 +1188,7 @@ function subscribeToRoom(roomId) {
             setLobbyOnlineMessage(room.status === 'playing' ? '대국이 시작되었습니다.' : '대국이 종료되었습니다.');
             var nextRevision = room.gameRevision || 0;
             if (!onlineState.roomStarted) enterOnlineGameFromRoom(room);
-            else if (nextRevision !== onlineState.gameRevision) {
+            else if (nextRevision > (onlineState.gameRevision || 0)) {
                 onlineState.gameRevision = nextRevision;
                 applyOnlineGameState(room.gameState);
             }
@@ -1198,12 +1207,21 @@ function syncOnlineGameState(reason) {
     if (reason !== 'tick' && onlineState.lastSyncedStateHash === hash) return Promise.resolve(false);
     onlineState.syncingState = true;
     onlineState.lastSyncedStateHash = hash;
-    onlineState.gameRevision = (onlineState.gameRevision || 0) + 1;
-    return firebaseDb.ref('rooms/' + onlineState.roomId).update({
-        status: gameOver ? 'finished' : 'playing',
-        gameRevision: onlineState.gameRevision,
-        gameState: payload,
-        updatedAt: firebase.database.ServerValue.TIMESTAMP
+    var nextRevision = (onlineState.gameRevision || 0) + 1;
+    onlineState.gameRevision = nextRevision;
+    return firebaseDb.ref('rooms/' + onlineState.roomId).transaction(function(current) {
+        if (!current) return current;
+
+        var currentRevision = typeof current.gameRevision === 'number' ? current.gameRevision : 0;
+        if (currentRevision >= nextRevision) return;
+
+        current.status = gameOver ? 'finished' : 'playing';
+        current.gameRevision = nextRevision;
+        current.gameState = payload;
+        current.updatedAt = Date.now();
+        return current;
+    }).then(function(result) {
+        return !!(result && result.committed);
     }).finally(function() {
         onlineState.syncingState = false;
     });
@@ -2497,6 +2515,58 @@ function opponentColor(color) { return color === 'white' ? 'black' : 'white'; }
 function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 function cloneBoard(b) { return normalizeBoard(b); }
 
+function hasColorMadeMove(color) {
+    for (var i = 0; i < moveHistory.length; i++) {
+        if (moveHistory[i] && moveHistory[i].color === color) return true;
+    }
+    return false;
+}
+
+function shouldDelayClockForColor(color) {
+    return !hasColorMadeMove(color);
+}
+
+function refreshTurnStartTimestamp() {
+    turnStartedAt = gameOver || shouldDelayClockForColor(currentTurn) ? null : Date.now();
+    timerLastTickAt = turnStartedAt;
+}
+
+function resetTimerTickAnchor(timestamp) {
+    timerLastTickAt = typeof timestamp === 'number' ? timestamp : Date.now();
+}
+
+function clearTimerTickAnchor() {
+    timerLastTickAt = null;
+}
+
+function consumeActiveTurnTime() {
+    var now = Date.now();
+    if (!timerLastTickAt) {
+        timerLastTickAt = now;
+        return null;
+    }
+
+    var elapsedSeconds = Math.max(0, (now - timerLastTickAt) / 1000);
+    timerLastTickAt = now;
+    if (elapsedSeconds <= 0) return null;
+
+    var previousTime = currentTurn === 'white' ? whiteTime : blackTime;
+    var currentTime = Math.max(0, previousTime - elapsedSeconds);
+
+    if (currentTurn === 'white') whiteTime = currentTime;
+    else blackTime = currentTime;
+
+    return {
+        color: currentTurn,
+        previousTime: previousTime,
+        currentTime: currentTime
+    };
+}
+
+function shouldSyncOnlineTick(tickResult) {
+    return !!tickResult && (tickResult.currentTime <= 0 || Math.floor(tickResult.previousTime) !== Math.floor(tickResult.currentTime));
+}
+
 function setGameConclusion(result, termination) {
     finalGameResult = result || '*';
     finalGameTermination = termination || '';
@@ -2679,9 +2749,9 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
     var piece = board[fromRow][fromCol];
     var color = pieceColor(piece);
     if (drawOfferBy && drawOfferBy !== color) drawOfferBy = null;
-    var isWhiteFirstMove = !firstMoveMade && color === 'white';
+    var isUntimedFirstMove = shouldDelayClockForColor(color);
     var moveOptions = options || {};
-    var moveDurationMs = typeof moveOptions.forceDurationMs === 'number' ? moveOptions.forceDurationMs : (isWhiteFirstMove ? 0 : (turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0));
+    var moveDurationMs = typeof moveOptions.forceDurationMs === 'number' ? moveOptions.forceDurationMs : (isUntimedFirstMove ? 0 : (turnStartedAt ? Math.max(0, Date.now() - turnStartedAt) : 0));
     var captured = board[toRow][toCol];
     var moveNotation = '';
     var isCapture = false;
@@ -2762,7 +2832,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, promotionPiece, options) {
         setGameConclusion('1/2-1/2', '50수 규칙');
         gameOver = true; stopTimer(); showResolvedGameOver();
     }
-    turnStartedAt = gameOver ? null : Date.now();
+    refreshTurnStartTimestamp();
     if (!gameSetting.unlimited && !gameOver && !timerInterval) startTimer();
     if (!gameOver && tryExecutePremove()) return;
     renderBoard(); updateUI();
@@ -3060,6 +3130,7 @@ function showPromotionModal(fromRow, fromCol, toRow, toCol, mode, movingPiece) {
 */
 
 function updateUI() {
+    syncSidePanelPerspective();
     var statusEl = document.getElementById('status');
     if (statusEl && !gameOver) {
         var name = currentTurn === 'white' ? gameSetting.whiteName : gameSetting.blackName;
@@ -3091,11 +3162,13 @@ function updateUI() {
 }
 
 function formatTime(totalSeconds) {
-    if (totalSeconds >= 3600) {
-        var h = Math.floor(totalSeconds / 3600), m = Math.floor((totalSeconds % 3600) / 60), s = totalSeconds % 60;
+    var safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+    if (safeSeconds < 10) return (Math.floor(safeSeconds * 10) / 10).toFixed(1);
+    if (safeSeconds >= 3600) {
+        var h = Math.floor(safeSeconds / 3600), m = Math.floor((safeSeconds % 3600) / 60), s = Math.floor(safeSeconds % 60);
         return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
     }
-    var m = Math.floor(totalSeconds / 60), s = totalSeconds % 60;
+    var m = Math.floor(safeSeconds / 60), s = Math.floor(safeSeconds % 60);
     return m + ':' + (s < 10 ? '0' : '') + s;
 }
 
@@ -3314,22 +3387,29 @@ function copyPGN() {
     } else {
         wEl.textContent = formatTime(whiteTime); bEl.textContent = formatTime(blackTime);
         wEl.classList.remove('no-limit'); bEl.classList.remove('no-limit');
-        if (whiteTime <= 30 && whiteTime > 0) wEl.classList.add('low-time'); else wEl.classList.remove('low-time');
-        if (blackTime <= 30 && blackTime > 0) bEl.classList.add('low-time'); else bEl.classList.remove('low-time');
+        if (whiteTime <= 20 && whiteTime > 0) wEl.classList.add('low-time'); else wEl.classList.remove('low-time');
+        if (blackTime <= 20 && blackTime > 0) bEl.classList.add('low-time'); else bEl.classList.remove('low-time');
     }
 }
 
 function startTimer() {
     stopTimer();
     if (gameSetting.unlimited) return;
+    resetTimerTickAnchor(turnStartedAt || Date.now());
+    resetTimerTickAnchor(turnStartedAt || Date.now());
+    resetTimerTickAnchor(turnStartedAt || Date.now());
+    resetTimerTickAnchor(turnStartedAt || Date.now());
     timerInterval = setInterval(function() {
         if (gameOver) { stopTimer(); return; }
-        if (currentTurn === 'white') {
-            whiteTime--;
+        var tickResult = consumeActiveTurnTime();
+        if (!tickResult) {
+            updateTimerDisplay();
+            return;
+        }
+        if (tickResult.color === 'white') {
             if (whiteTime <= 0) drawOfferBy = null;
             if (whiteTime <= 0) { whiteTime = 0; gameOver = true; finalGameResult = '0-1'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.blackName + '의 승리입니다!'); renderBoard(); }
         } else {
-            blackTime--;
             if (blackTime <= 0) drawOfferBy = null;
             if (blackTime <= 0) drawOfferBy = null;
             if (blackTime <= 0) { blackTime = 0; gameOver = true; finalGameResult = '1-0'; turnStartedAt = null; stopTimer(); showGameOver('시간 초과! ⏰', gameSetting.whiteName + '의 승리입니다!'); renderBoard(); }
@@ -3350,31 +3430,38 @@ function updateTimerDisplay() {
     } else {
         wEl.textContent = formatTime(whiteTime); bEl.textContent = formatTime(blackTime);
         wEl.classList.remove('no-limit'); bEl.classList.remove('no-limit');
-        if (whiteTime <= 30 && whiteTime > 0) wEl.classList.add('low-time'); else wEl.classList.remove('low-time');
-        if (blackTime <= 30 && blackTime > 0) bEl.classList.add('low-time'); else bEl.classList.remove('low-time');
+        if (whiteTime <= 20 && whiteTime > 0) wEl.classList.add('low-time'); else wEl.classList.remove('low-time');
+        if (blackTime <= 20 && blackTime > 0) bEl.classList.add('low-time'); else bEl.classList.remove('low-time');
     }
 }
 
 function startTimer() {
     stopTimer();
     if (gameSetting.unlimited) return;
+    resetTimerTickAnchor(turnStartedAt || Date.now());
     timerInterval = setInterval(function() {
         if (gameOver) { stopTimer(); return; }
-        if (isOnlineMode() && !isLocalOnlineTurn()) return;
-        if (currentTurn === 'white') {
-            whiteTime--;
+        if (isOnlineMode() && !isLocalOnlineTurn()) {
+            resetTimerTickAnchor();
+            return;
+        }
+        var tickResult = consumeActiveTurnTime();
+        if (!tickResult) {
+            updateTimerDisplay();
+            return;
+        }
+        if (tickResult.color === 'white') {
             if (whiteTime <= 0) drawOfferBy = null;
             if (whiteTime <= 0) { whiteTime = 0; gameOver = true; setGameConclusion('0-1', '시간 초과'); turnStartedAt = null; stopTimer(); showResolvedGameOver(); renderBoard(); }
         } else {
-            blackTime--;
             if (blackTime <= 0) { blackTime = 0; gameOver = true; setGameConclusion('1-0', '시간 초과'); turnStartedAt = null; stopTimer(); showResolvedGameOver(); renderBoard(); }
         }
         updateTimerDisplay();
-        if (isOnlineMode() && !onlineState.applyingRemoteState) syncOnlineGameState(gameOver ? 'finish' : 'tick');
-    }, 1000);
+        if (isOnlineMode() && !onlineState.applyingRemoteState && shouldSyncOnlineTick(tickResult)) syncOnlineGameState(gameOver ? 'finish' : 'tick');
+    }, TIMER_TICK_MS);
 }
 
-function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } clearTimerTickAnchor(); }
 
 // ★ 되돌리기: AI 모드에서는 AI 수까지 같이 되돌림 (2수)
 function undoMove() {
@@ -3411,7 +3498,7 @@ function undoMove() {
     }
     
     selectedSquare = null; possibleMoves = []; gameOver = false;
-    turnStartedAt = Date.now();
+    refreshTurnStartTimestamp();
     document.getElementById('gameover-modal').classList.remove('active');
     closeResignModal(true);
     closePGNModal();
@@ -3469,7 +3556,7 @@ function initGame() {
     clearPremoveQueue();
     drawOfferBy = null;
     gameStartedAt = new Date();
-    turnStartedAt = Date.now();
+    turnStartedAt = null;
     finalGameResult = '*';
     finalGameTermination = '';
     gameEndedAt = null;
@@ -3480,6 +3567,7 @@ function initGame() {
     enPassantTarget = null; halfMoveClock = 0; fullMoveNumber = 1;
     gameOver = false; capturedByWhite = []; capturedByBlack = [];
     lastMoveFrom = null; lastMoveTo = null; firstMoveMade = false;
+    refreshTurnStartTimestamp();
     aiThinking = false;
     showAIThinking(false);
 
