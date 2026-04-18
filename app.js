@@ -1810,6 +1810,26 @@ function ensureDragGhost(pieceMarkup) {
     return dragGhostEl;
 }
 
+function getClientPointFromEvent(event, allowChangedTouches) {
+    if (!event) return null;
+    if (typeof event.clientX === 'number' && typeof event.clientY === 'number') {
+        return { clientX: event.clientX, clientY: event.clientY };
+    }
+    if (event.touches && event.touches.length > 0) {
+        return {
+            clientX: event.touches[0].clientX,
+            clientY: event.touches[0].clientY
+        };
+    }
+    if (allowChangedTouches && event.changedTouches && event.changedTouches.length > 0) {
+        return {
+            clientX: event.changedTouches[0].clientX,
+            clientY: event.changedTouches[0].clientY
+        };
+    }
+    return null;
+}
+
 function updateDragGhostPosition(clientX, clientY) {
     if (!dragState || !dragState.hasMoved) return;
     var ghost = ensureDragGhost(dragState.pieceMarkup);
@@ -1908,19 +1928,22 @@ function hoverPointerDragTarget(row, col, squareEl) {
 
 function handlePointerDragMove(event) {
     if (!dragState) return;
-    dragState.lastClientX = event.clientX;
-    dragState.lastClientY = event.clientY;
+    var point = getClientPointFromEvent(event);
+    if (!point) return;
+    if (event && event.cancelable) event.preventDefault();
+    dragState.lastClientX = point.clientX;
+    dragState.lastClientY = point.clientY;
 
-    var deltaX = event.clientX - dragState.startClientX;
-    var deltaY = event.clientY - dragState.startClientY;
+    var deltaX = point.clientX - dragState.startClientX;
+    var deltaY = point.clientY - dragState.startClientY;
     if (!dragState.hasMoved) {
         if ((deltaX * deltaX) + (deltaY * deltaY) < 16) return;
         dragState.hasMoved = true;
         if (dragState.sourceEl) dragState.sourceEl.classList.add('dragging');
     }
 
-    updateDragGhostPosition(event.clientX, event.clientY);
-    refreshPointerDragTarget(event.clientX, event.clientY);
+    updateDragGhostPosition(point.clientX, point.clientY);
+    refreshPointerDragTarget(point.clientX, point.clientY);
 }
 
 function endPointerDragFromPoint(clientX, clientY, shouldCommit) {
@@ -1958,6 +1981,7 @@ function startPieceDrag(row, col, pieceEl, event) {
     }
 
     var piece = mode === 'live' ? board[row][col] : previewState.board[row][col];
+    var point = getClientPointFromEvent(event);
 
     cleanupDragState();
     var pieceRect = pieceEl && pieceEl.getBoundingClientRect ? pieceEl.getBoundingClientRect() : null;
@@ -1969,12 +1993,12 @@ function startPieceDrag(row, col, pieceEl, event) {
         piece: piece,
         pieceMarkup: pieceEl ? pieceEl.innerHTML : '',
         sourceEl: pieceEl || null,
-        startClientX: event && typeof event.clientX === 'number' ? event.clientX : 0,
-        startClientY: event && typeof event.clientY === 'number' ? event.clientY : 0,
-        lastClientX: event && typeof event.clientX === 'number' ? event.clientX : 0,
-        lastClientY: event && typeof event.clientY === 'number' ? event.clientY : 0,
-        dragOffsetX: pieceRect && event && typeof event.clientX === 'number' ? (event.clientX - pieceRect.left) : 0,
-        dragOffsetY: pieceRect && event && typeof event.clientY === 'number' ? (event.clientY - pieceRect.top) : 0,
+        startClientX: point ? point.clientX : 0,
+        startClientY: point ? point.clientY : 0,
+        lastClientX: point ? point.clientX : 0,
+        lastClientY: point ? point.clientY : 0,
+        dragOffsetX: pieceRect && point ? (point.clientX - pieceRect.left) : 0,
+        dragOffsetY: pieceRect && point ? (point.clientY - pieceRect.top) : 0,
         hasMoved: false
     };
     setSelection(row, col, moves, mode, piece);
@@ -3007,6 +3031,9 @@ function renderBoard() {
                         draggablePiece.addEventListener('mousedown', function(e) {
                             startPointerDrag(dr, dc, draggablePiece, e);
                         });
+                        draggablePiece.addEventListener('touchstart', function(e) {
+                            startPointerDrag(dr, dc, draggablePiece, e);
+                        }, { passive: false });
                     })(displayR, displayC, pieceDiv);
                 }
                 square.appendChild(pieceDiv);
@@ -3758,9 +3785,25 @@ window.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('mouseup', function(e) {
         endPointerDragFromPoint(e.clientX, e.clientY, true);
     });
+    document.addEventListener('touchmove', function(e) {
+        handlePointerDragMove(e);
+    }, { passive: false });
+    document.addEventListener('touchend', function(e) {
+        var point = getClientPointFromEvent(e, true);
+        endPointerDragFromPoint(point ? point.clientX : -1, point ? point.clientY : -1, true);
+    }, { passive: false });
+    document.addEventListener('touchcancel', function() {
+        endPointerDragFromPoint(-1, -1, false);
+    }, { passive: false });
     window.addEventListener('blur', function() {
         endPointerDragFromPoint(-1, -1, false);
     });
+    var chessboardEl = document.getElementById('chessboard');
+    if (chessboardEl) {
+        chessboardEl.addEventListener('touchmove', function(e) {
+            if (e.cancelable) e.preventDefault();
+        }, { passive: false });
+    }
     var onlineNameInput = document.getElementById('online-name');
     var introStartBtn = document.getElementById('intro-start-btn');
     if (introStartBtn) introStartBtn.focus();
