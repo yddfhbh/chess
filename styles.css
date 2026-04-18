@@ -1056,6 +1056,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     overflow: visible;
     pointer-events: none;
     filter: drop-shadow(1px 2px 2px rgba(0, 0, 0, 0.35));
@@ -1724,6 +1725,16 @@ body {
         --piece-visual-scale: 1.08;
     }
 
+    #chessboard .square > .piece-svg {
+        width: 108%;
+        height: 108%;
+    }
+
+    .drag-ghost {
+        width: calc(var(--sq-size) * 1.08);
+        height: calc(var(--sq-size) * 1.08);
+    }
+
     #intro-screen.active {
         align-items: flex-start;
         padding: 16px;
@@ -2163,6 +2174,16 @@ body {
         --piece-visual-scale: 1.12;
     }
 
+    #chessboard .square > .piece-svg {
+        width: 114%;
+        height: 114%;
+    }
+
+    .drag-ghost {
+        width: calc(var(--sq-size) * 1.14);
+        height: calc(var(--sq-size) * 1.14);
+    }
+
     #intro-screen.active {
         padding: 14px;
     }
@@ -2314,6 +2335,16 @@ body {
         --sq-size: min(40px, calc((100vw - 24px) / 8));
         --piece-size-ratio: 1;
         --piece-visual-scale: 1.16;
+    }
+
+    #chessboard .square > .piece-svg {
+        width: 120%;
+        height: 120%;
+    }
+
+    .drag-ghost {
+        width: calc(var(--sq-size) * 1.2);
+        height: calc(var(--sq-size) * 1.2);
     }
 
     .intro-feature {
