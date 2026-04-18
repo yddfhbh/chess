@@ -1773,7 +1773,7 @@ body {
     }
 
     .intro-board-piece-svg svg {
-        transform: scale(1.12);
+        transform: scale(1.2);
     }
 
     #intro-board-preview-primary {
@@ -2189,7 +2189,7 @@ body {
     }
 
     .intro-board-piece-svg svg {
-        transform: scale(1.16);
+        transform: scale(1.24);
     }
 
     .intro-shell {
@@ -2331,7 +2331,7 @@ body {
     }
 
     .intro-board-piece-svg svg {
-        transform: scale(1.2);
+        transform: scale(1.28);
     }
 
     .intro-feature {
